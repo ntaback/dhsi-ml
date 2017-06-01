@@ -1,0 +1,107 @@
+---
+title: "Day 1 - Introduction to Machine Learning"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+# Examples
+- Hillary e-mails
+- 
+
+# Data
+
+- Statistics and Machine Learning start with data.
+- Data can be numerical or text.
+- Numerical data arises during measurement.  For example, weight, height, and age.
+- Categorical data arise when the outcome of the measurements are discrete categories.  For example, colour, sex, satisfaction, and year of study at university.
+- Text.  “So live as if you were living already for the second time and as if you had acted the first time as wrongly as you are about to act now!”
+
+# Statistics and Machine Learning
+
+## Statistics
+
+- Statistics is the study of variation.  
+- A certain town is served by two hospitals. In the larger hospital about 45 babies are born each day, and in the smaller hospital about 15 babies are born each day. As you know, about 50 percent of all babies are boys. However, the exact percentage varies from day to day. Sometimes it may be higher than 50 percent, sometimes lower. For a period of 1 year, each hospital recorded the days on which more than 60 percent of the babies born were boys. Which hospital do you think recorded more such days?
+
+```{r, echo=FALSE}
+library(ggplot2)
+set.seed(1)
+p_small <- rbinom(365,15,.5)/15
+p_large <- rbinom(365,45,.5)/45
+hospdat <- data.frame(p_small,p_large)
+ggplot(hospdat,aes(p_small))+geom_bar()+labs(title="Distribution of Boys in Small Hospital",x="Percentage of Boys")+xlim(0.15,0.9)
+ggplot(hospdat,aes(p_large))+geom_bar()+labs(title="Distribution of Boys in Large Hospital",x="Percentage of Boys")+xlim(0.15,0.9)
+```
+
+## Machine Learning
+
+- Machine learning (ML) is the science of getting computers to act without being explicitly programmed. ([Ng](https://www.coursera.org/learn/machine-learning)).
+- ML involves data exploration and statistical pattern recogition.
+- Consider the example of character recognition. 
+- The goal is classification of handwritten numerals. This problem captured the attention of the machine learning and neural network community for many years, and has remained a benchmark problem in the field. (Elements of Statis. Learning, pg. 404)
+- Figure 11.9 shows some examples of normalized hand- written digits, automatically scanned from envelopes by the U.S. Postal Service. The original scanned digits are binary and of different sizes and orientations; the images shown here have been deslanted and size normal- ized, resulting in 16 × 16 grayscale images (Le Cun et al., 1990). These 256 pixel values are used as inputs to the neural network classifier. (Elements of Statis. Learning, pg. 404)
+
+![](digits.png)
+
+- The data from this example come from the handwritten ZIP codes on envelopes from U.S. postal mail. 
+- The data for each image are a 16x16 grid of pixel intensities (scored from 0-253) and the identity of each image. 
+- Yaan LeCun (and many other groups) have been working very hard to obtain small error rates for this problem.  Error rates have been reported as low as 0.7%.
+
+# Supervised versus Unsupervised Machine Learning
+
+- This is an example of a **supervised** learning problem.  We have a set of features (pixel intensity), and a response (the true  identity of each image).  The problem is to use the features to **predict** the response.
+- If the response is quantitative then the it is a regression problem.
+- If the response is qualitative then it is a classification problem.
+- Quantitative variables take on numerical values (e.g., height, weight, income), and qualitative variables take on values in one several classes (e.g., sex, authorship, brand of product purchased, sentiment, etc.).
+- Classical statistical methods such as linear (quantitative response) or logistic (qualitative response with two categories) are often used.
+- In **unsupervised** learning we observe only the features, but no response variable.  This is a more challenging situation. 
+
+```{r}
+library(gutenbergr)
+library(dplyr)
+library(tidytext)
+library(stringr)
+library(quanteda)
+library(tm)
+library(SnowballC)
+
+hgwells <- gutenberg_download(c(35, 36, 5230, 159))
+
+tidy_hgwells <- hgwells %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words)
+
+td_wells <-  tidy_hgwells %>% mutate(word = str_extract(word, "[a-z']+")) %>%
+  mutate(word = wordStem(word)) %>% group_by(gutenberg_id,word) %>% summarise(n=n())
+
+dtm_wells <- td_wells %>% cast_tdm(gutenberg_id,word,n)
+
+wells_matrix <- as.matrix(dtm_wells)
+
+d <-dist(wells_matrix)
+
+groups <- hclust(d)
+
+plot(groups)
+
+```
+
+
+```{r}
+library(tm)
+library(tm.plugin.webmining)
+library(tidytext)
+library(dplyr)
+
+yahoonews <- WebCorpus(YahooNewsSource("Margaret Atwood"))
+class(yahoonews)
+meta(yahoonews[[1]])
+yahoonews[[1]]
+
+t_yn <- tidy(yahoonews) %>% unnest_tokens(word,text)
+
+```
+
+
+
