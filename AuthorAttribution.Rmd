@@ -1,0 +1,137 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+NOTE: Include a brief discussion about how we got the plays. Link to website...
+
+So what we could do with this is try and read 25 Shakespeare plays with the identifier "Is Shakespeare. " Then we read 10 works with the identifier "Is Ben Jonson." Then we might look at 10 plays that are under dispute -- we don't know (or agree) if they are Shakespeare or Jonson. Can machine learning help us identify 
+ 
+The first thing to do is to load our local repository of Shakespeare plays into a data frame. The following commands set our working directory to the place where we've saved our Shakespeare files (you will need to edit this) and then loads a stores the list of those files in file _list.
+
+Next we're going to use two programming structures: a for loop and an if statement. 
+
+A for loop tells R to do something a certain number of times. Sometimes we just tell the program to do a series of tasks a specific number of times. In other cases (as below) we don't hard code a specific number into the for loop but instead give it some condition that it has to meet. In this case we're saying "For every file in the file_list structure, do the following things":
+
+For every file in file_list we have two if statements. The first if statement says 'if dataset does not exist' (!exists means does not exist) then read the file that we're currently looking at (remember, we do this for every file in our directory) into dataset. This condition will only occur for the first file that we read.
+
+The second ...
+
+```{r}
+
+library(dplyr)
+
+setwd("/Users/paulbarrett/Dropbox/Teaching/DHSI/Shakespeare")
+getwd()
+file_list <- list.files()
+file_list
+
+for (file in file_list) {
+  
+  if (!exists("Shake_dataset")){
+    Shake_dataset <- read.table (file, header=FALSE, sep="\n")
+  }
+  
+  if (exists("Shake_dataset")) {
+    temp_dataset <- read.table (file, header=FALSE, sep ="\n")
+    Shake_dataset <- rbind(Shake_dataset, temp_dataset)
+    rm(temp_dataset)
+  }
+}
+
+Shake_dataset
+#names(Shake_dataset) <- c("text")
+#Shake_dataframe %>% unnest_tokens(word, V1)
+
+```
+
+Dataset is now a dataframe containing all of the lines in Shakespeare's plays. 
+
+Next let's load, from project Gutenberg, all of the plays of two of Shakespeare's contemporaries, Christopher Marlowe and Ben Jonson. First we need to call the Gutenberg library. Then we need to get the Gutenberg IDs of all of Jonson's plays...
+
+```{r}
+library(gutenbergr)
+```
+
+The Project Gutenberg library is a quick and easy way to download books directly from Gutenberg in a way that is easy for R to work with and manipulate.
+
+We can, for instance, very quickly find all of the works of a particular author:
+
+```{r}
+library(stringr)
+gutenberg_works(str_detect(author, "Carroll"))
+```
+
+But there may be more than one author in the Gutenberg library with the last name Carroll. So let's be more specific:
+
+```{r}
+library(stringr)
+gutenberg_works(str_detect(author, "Carroll, Lewis"))
+```
+
+Now we've narrowed down these works to only Lewis Carroll.
+
+
+Let's say we can't remember Jonson's first name. In that case, we can search through all of the Gutenberg works to find anyone with the name Jonson:
+
+```{r}
+gutenberg_works(str_detect(author, 'Marlowe'))
+gutenberg_works(str_detect(author, 'Shakespeare'))
+```
+
+
+
+```{r}
+gutenberg_metadata %>% filter(author == "Marlowe, Christopher")
+gutenberg_metadata %>% filter(author == "Shakespeare, William")
+```
+
+Now we'd like to download all of those books:
+
+```{r}
+Jonson_plays <- gutenberg_download(c(3694, 3695, 3771, 4011, 4039, 4081, 5134, 5166, 5232, 5333, 
+                                     49461, 50150), meta_fields = "title")
+
+Marlowe_plays <- gutenberg_download (c(811, 901, 1094, 1589, 16169, 18781, 20288))
+
+#For Shakespeare, we'll just download a selection of his plays, leaving a few key plays excluded
+#Exclude: Henry the 6th, 
+Shakes_plays <- gutenberg_download(c(1041, 1103, 1104, 1106, 1107, 1108, 1109, 1111, 1112, 1113, 1114, 1115, 1116 ), meta_fields = "title")
+
+```
+
+Now lets turn this dataframe into texts we can work with:
+
+```{r}
+library(tidytext)
+
+Jonson_words <- Jonson_plays %>% unnest_tokens(word, text)
+Shakes_words <- Shakes_plays %>% unnest_tokens(word, text)
+Marlowe_words <- Marlowe_plays %>% unnest_tokens(word, text)
+
+#We add a column to our data frame to get a particular author
+Jonson_words$author <- "Jonson"
+Shakes_words$author <- "Shakespeare"
+Marlowe_words$author <- "Marlowe"
+
+```
+
+Now we need to get our machine learning packages installed. Lets load Caret, lattice, and ggplot2 (remember you might need  to install the package first):
+
+This is where I'll start to need Nathan's help.
+
+```{r}
+library(caret)
+library(ggplot2)
+library(lattice)
+
+control <- trainControl(method="cv", number = 10)
+metric <- "Accuracy"
+
+set.seed(7)
+#fit.lda <- train(Shakes_words~., data = )
+```
+
+
+

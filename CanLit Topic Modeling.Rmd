@@ -1,0 +1,236 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Its one thing to try and topic model data that is already pre-packaged and ready to go but its something different altogether to work with your own data. Let's see a few different ways that we can work with data that we have to import ourselves.
+
+The files in your "CanLit" directory are plaintext (mostly -- with the exception of a fwe weird characters) copies of issues of the journal "Canadian Literature." What might we learn about the state of Canadian literature, about editorial decisionmaking, about what authors get discussed together if we engage in a topic modeling of the journal?
+
+(Should I talk about how I got the plaintext versions of the issues?)
+
+First thing we'll do is try and load the files directly into R. 
+
+This code is similar to how we first tried loading the Shakespeare code into R. 
+
+```{r}
+library(dplyr)
+library(tm)
+
+#This is the place where I am storing my CanLit issues. You might need to change this to be set to the place where you have stored your CanLit articles
+path <- "/Users/paulbarrett/Dropbox/Teaching/DHSI/CanLit/"
+
+#Set the working directory (the directory R will look for the files) to path
+setwd(path)
+
+#CanLit_list is a character vector (basically, a list of words) containing all of the CanLit files
+CanLit_list <- list.files()
+
+#Now we need to loop over the list of files and add the contents of each file to "CanLit_dataset"
+#You don't need to entirely understand this code -- just the general sense that we're reading each #file into the big collection of files called "CanLit_dataset"
+for (file in CanLit_list) {
+  
+  if (!exists("CanLit_dataset")){
+    CanLit_dataset <- read.table (file, header=FALSE, sep="\n")
+  }
+  
+  if (exists("CanLit_dataset")) {
+    temp_dataset <- read.table (file, header=FALSE, sep ="\n")
+    CanLit_dataset <- rbind(CanLit_dataset, temp_dataset)
+    rm(temp_dataset)
+  }
+}
+  
+```
+
+Note that this would data importing activity would actually be a lot easier if our data was in a handy format that R can just automatically import like CSV. CSV (Comma Separated Values) is a kind of data format where values are separated by commas. You can read CSV files in most text editors or in a spreadsheet program. CSV is especially convenient for R because we can actually just import the data using the "Import Dataset" button in the corner of RStudio.
+
+Now we've read our Canadian Literature corpus into R. If we'd like to know what kind of data object this corpus has been saved in we can use the class function to get R to tell us:
+
+```{r}
+class(CanLit_dataset)
+```
+
+Class tells us what class (type) of data CanLit_dataset is. Turns out, its a dataframe. This is a common way of representing data in R (say more)
+
+This is often a useful format to have it in but right now we don't actually need our data in a data frame. We need something slightly different -- a corpus. We could actually convert our data frame into a corpus, but it would require a lot of steps. Luckily, R has a much easier way to do all of this (so then why did I get you to do that in the first place!!?) :
+
+```{r}
+#Load the Topic Modeling library
+library(tm)
+
+#This actually just loads the files from the CanLit directory into a 
+CanLit_corpus <- Corpus(DirSource(path))
+CanLit_corpus
+
+filenames <- list.files("/Users/paulbarrett/Dropbox/Teaching/DHSI/CanLit/", pattern="*.txt")
+```
+
+This has created a 'corpus' (a collection of documents) out of all of our texts.
+
+Actually it turns out there's an even EASIER way to do this. Let's use another method for ingesting this data: Quanteda. Quanteda works very well with the tm (textmining) library to prepare your data for textual analysis. The basic process here, to prepare our data for topic modeling, is that we have to read in the text files, convert them into a corpus, and then turn that corpus into a Document Frequency Matrix (DFM). We could do all of this manually (as you saw a little bit above) but Quanteda makes this much easier. 
+
+Full disclosure: When creating this notebook I didn't know about Quanteda so I did all of this using the tm library -- it took about 100 lines of code. Then I learned about Quanteda and realized it could all be done with about 4 commands. Quanteda had made easy (and better) functions to automatically do all of the things I tried to manually code. The lesson: google first and code later!
+
+```{r}
+library(quanteda)
+library(readtext)
+
+#path <- "/Users/paulbarrett/Dropbox/Teaching/DHSI/CanLit/"
+#setwd(path)
+
+#CanLit_list is now a list of all the files in my CanLit directory
+#CanLit_list <- list.files()
+
+# readtext() is a simple method for reading all of the files in that directory. This replaces the big, ugly for loop that we had in our first chunk of code. Simple:
+CanLitFiles <- readtext("/Users/paulbarrett/Dropbox/Teaching/DHSI/CanLit/*.txt")
+
+#Now we create a CanLit_corpus out of the raw text that we've read
+CanLit_corpus_readtext <- corpus(CanLitFiles)
+```
+
+OK, so we *think* we've created a corpus. Let's have a look to see what we've built:
+
+```{r}
+#Lets take a look at what our corpus looks like:
+class(CanLit_corpus_readtext)
+summary(CanLit_corpus_readtext)
+length(CanLit_corpus_readtext)
+```
+
+This looks good! Remember, a corpus is just a fancy way of describing a collection of works that have been formatted to interact with some of R's functions. A corpus could be any collection of objects you want to investigate: 100 novels, 1000 astronomical charts, 500 letters, 10,000 pictures of your cat. Whatever...
+
+Now that we have our corpus, we can easily turn our corpus into a document frequency matrix.
+
+```{r}
+CanLit_Stopwords = c(stopwords("english"), stopwords("french"), "amprftvalfmtinfo", "ericamprftidinfo", "mtx", "ofifmt", "sfxscholarsportalinfomcmasterurlverz", "authoraffil", "authoraffili", "tion", "p", "ing", "ia")
+
+CanLit_dfm <- dfm(CanLit_corpus_readtext, remove = CanLit_Stopwords, stem = TRUE, remove_punct = TRUE)
+```
+
+There are a few things going on here: 
+
+First we call the command dfm with a series of arguments (the things in the brackets separated by commas).
+
+Arguments allow us to customize how we want the command to be run. So if we're not picky we might just run a command like:
+
+Coffee(medium)
+
+which would get us back whatever the 'default' settings of a medium coffee happen to be. If you're like me, you'd run it like:
+
+Coffee(medium, roast = dark roast, sugars = 2, milk = 1, cup size = grande, name = Paul)
+
+In this case we have four arguments associated with our dfm command: input, remove, stem, remove_punct. As with the coffee example, most of the arguments here are optional. In the coffee example the only thing the function really needs to know is the size of your coffee; the rest can be customized only if you want to customize it.
+
+Lets look at the arguments that I'm including for dfm:
+
+***HAVE WE EXPLAINED STEMMING AND STOPWORDS ALREADY?
+
+remove = CanLit_Stopwords -- This tells the dfm to remove a selection of English, French, and CanLit custom stopwords from the corpus. 
+
+stem = TRUE -- This tells dfm to stem words. The idea is that we are really interested in the ...
+
+remove_punct = TRUE -- This tells dfm to remove punctuation.
+
+Most of these arguments are in the interest of 'scrubbing' the data -- removing the things we don't care about (words like "the," "a," "he," punctuation marks, etc...) so we are really only analyzing the parts of the text that are actually meaningful for our work.
+
+As data cleaning goes, this is a pretty crude and basic version of it. If we really wanted to substantially clean our data we'd need to go through this cleaning process a few times and probably write a script (in R or Python or a similar language) that cleans the data very well. But for our purposes, this is probably good enough.
+
+OK, so what have we actually createed?
+
+```{r}
+CanLit_dfm
+```
+
+OK -- interesting, but what does that actually tell us? Not much. But there a few tools that can give us a wider view of the DFM & corpus:
+
+```{r}
+CanLit_Top100 <- topfeatures(CanLit_dfm, 100) 
+CanLit_Top100
+```
+
+We can visualize this relatively easily in a word cloud:
+
+```{r}
+library(wordcloud)
+set.seed(100)
+textplot_wordcloud(CanLit_dfm, min.freq = 11000, random.order = FALSE,
+                   rot.per = .25, 
+                   colors = RColorBrewer::brewer.pal(8,"Dark2"))
+```
+
+We can also plot these values pretty easily:
+
+```{r}
+# Create a data.frame for ggplot
+topDf <- data.frame(
+    list(
+        term = names(CanLit_Top100),
+        frequency = unname(CanLit_Top100)
+    )
+)
+
+# Sort by reverse frequency order
+topDf$term <- with(topDf, reorder(term, -frequency))
+
+ggplot(topDf) + geom_point(aes(x=term, y=frequency)) +
+    theme(axis.text.x=element_text(angle=90, hjust=1))
+```
+
+These are interesting, but if we want to be a bit more focused and look at some of the patterns more closely, we can generate some lexical dispersion plots. LDPs basically track how often a term gets used across a corpus. So we can see compare how often indigenous and black writing is discussed in the journal:
+
+```{r}
+
+```
+
+
+```{r}
+textplot_xray(
+     kwic(CanLit_corpus_readtext[160:211], "Margaret Atwood"),
+     kwic(CanLit_corpus_readtext[160:211], "Mordechai Richler"),
+     kwic(CanLit_corpus_readtext[160:211], "Austin Clarke")
+)
+```
+
+
+
+
+
+```{r}
+freq=rowSums(as.matrix(CanLit_dfm))
+head(freq,200)
+plot(sort(freq, decreasing = T),col="blue",main="Word TF-IDF frequencies", xlab="TF-IDF-based rank", ylab = "TF-IDF")
+tail(sort(freq),n=100)
+
+library(ggplot2)
+
+high.freq=tail(sort(freq),n=50)
+hfp.df=as.data.frame(sort(high.freq))
+hfp.df$names <- rownames(hfp.df) 
+
+ggplot(hfp.df, aes(reorder(names,high.freq), high.freq)) +
+  geom_bar(stat="identity") + coord_flip() + 
+  xlab("Terms") + ylab("Frequency") +
+  ggtitle("Term frequencies")
+```
+```
+
+
+Now that we have created a ____, let's try and actually generate a topic model from our corpus.
+
+```{r}
+library(topicmodels)
+
+burnin <- 4000
+iter <- 200
+thin <- 500
+seed <-list(2003,5,63,100001,765)
+nstart <- 5
+best <- TRUE
+k <- 5
+
+CanLit_lda_5 <- LDA (CanLit_dfm,k, method="Gibbs", control=list(nstart=nstart, seed = seed, best=best, burnin = burnin, iter = iter, thin=thin))
+
+#CanLit_lda_25 <- LDA(CanLit_tdm, k = 25, control = list(seed=1234))
+```
+ 

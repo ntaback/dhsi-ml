@@ -1,0 +1,103 @@
+---
+title: "Topic Modeling R Notebook"
+output: html_notebook
+---
+
+Topic Modeling is a form of unsupervised machine learning. It is a kind of text mining that doesn't search for particular, predetermined content, but instead 'reads' an entire corpus and extracts a set of topics. Its unclear, and a point of debate, whether the topics are read / discovered from the corpus or whether the topics are 'asserted' as a description of the corpus. 
+
+There are a number of tools for topic modeling: the most common is probably MALLET. 
+
+ADD MALLET IMAGE HERE
+
+Mallet is effective and can be useful but it requires a fair amount of command line programming. For a quick primer on installing and using mallet look here: http://programminghistorian.org/lessons/topic-modeling-and-mallet
+
+Instead of trying to navigate MALLET's difficult interface, we'll do our topic modeling in R. If we wanted, we could also install the MALLET package for R which allows us to run MALLET in R. But this requires that we first install MALLET on our local machine which is a bit tricky. So, for now, we'll just use the "topicmodels" library to do our work.
+
+One important thing to remember about topic modeling is that we tell the topic modeling algorithm beforehand how many topics we want it to discover. If the topics appear too general, we increase the number of topics; if they're too narrow, we reduce the number of topics. This raises the question of whether the topics we get back from the algorithm are an actual representation of the corpus or whether they're just one of many possible interpretations of that corpus.  
+
+Keeping that in mind, let's jump in!
+
+To get started, lets load the topicmodels library (remember you may need to install first):
+
+```{r}
+library(topicmodels)
+```
+
+Next, let's load some data to model:
+
+```{r}
+data("AssociatedPress")
+```
+
+```{r}
+ap_lda_2 <- LDA(AssociatedPress, k = 2, control = list(seed=1234))
+ap_lda_2
+```
+
+OK, now we have a model, of size 2, of the Associated Press data.
+want to start to look at our two topics to see what they are. Lets use tidytext to clean up this material.
+
+```{r}
+library(tidytext)
+ap_topics_2 <- tidy(ap_lda_2, matrix="beta")
+ap_topics_2
+```
+
+This table tells us the list of terms, with the probability that they are part of one of our topics. So "aaron" has a 1.686917e-12 of being in topic 1, a 3.89591e-05 of being in topic 2 and so on. How can we get more meaningful data?
+
+How about finding the top 10 terms associated with each topic? We can use dplyr to plot that:
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+ap_top_terms_2 <- ap_topics_2 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms_2 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+```
+
+This gives us the top 10 terms for our two topics. This is interesting but it doesn't really tell us anything meaningful. What if we run the model again with a larger number of topics. Let's try 30:
+
+```{r}
+ap_lda_30 <- LDA(AssociatedPress, k = 30, control = list(seed=1234))
+ap_lda_30
+
+ap_topics_30 <- tidy(ap_lda_30, matrix="beta")
+ap_topics_30
+
+ap_top_terms_30 <- ap_topics_30 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms_30 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+```
+
+This looks far more interesting and starts to give us some more meaningful information. A quick glance of the topics shows that these roughly align with major news stories over the past few years. The topic modeling algorithm has identified 
+
+One thing you'll notice about topic modeling is that certain words will overlap across topics. Other methods of analysis (forms of clustering) don't allow for this overlap.
+
+Topic modeling doesn't just estimate each topic as a mixture of words, it also can estimate the degree to which each document is a mixture of topics. This is called the per-document-per-topic probabilities ("gamma") by using tidy() with the matrix = "gamma" argument:
+
+```{r}
+ap_documents <- tidy(ap_lda_2, matrix = "gamma")
+ap_documents
+```
+
+

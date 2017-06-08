@@ -1,0 +1,60 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+Using N-Grams:
+
+```{r}
+
+library(dplyr)
+library(janeaustenr)
+library(tidyr)
+library(tidytext)
+library(igraph)
+
+austen_bigrams <- austen_books() %>% unnest_tokens(bigram, text, token = "ngrams", n = 2)
+austen_quadgrams <- austen_books() %>% unnest_tokens(bigram, text, token = "ngrams", n = 4)
+
+austen_bigrams %>% count(bigram, sort = TRUE)
+austen_quadgrams %>% count(bigram, sort = TRUE)
+
+
+```
+
+These are the top bi-grams in Jane Austen's writing. 
+
+```{r}
+bigrams_separated <- austen_bigrams %>% separate(bigram, c("word1", "word2"), sep = " ")
+
+bigrams_filtered <- bigrams_separated %>% filter(!word1 %in% stop_words$word) %>% filter(!word2 %in% stop_words$word)
+
+bigram_counts <- bigrams_filtered %>% count(word1, word2, sort = TRUE)
+
+bigram_counts
+```
+
+Trying something else:
+
+```{r}
+bigrams_united <- bigrams_filtered %>%
+  unite(bigram, word1, word2, sep = " ")
+
+bigram_tf_idf <- bigrams_united %>%
+  count(book, bigram) %>%
+  bind_tf_idf(bigram, book, n) %>%
+  arrange(desc(tf_idf))
+
+bigram_tf_idf
+```
+
+Now let's create a graph of our results:
+
+```{r}
+bigram_graph <- bigram_counts %>%
+  filter(n > 20) %>%
+  graph_from_data_frame()
+
+bigram_graph
+```
+
