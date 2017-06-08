@@ -1,16 +1,22 @@
 ---
 title: "Introduction to Machine Learning in the Digital Humanities - Day 2"
 output:
-  html_notebook: default
   html_document: default
+  html_notebook: default
 ---
 
 ```{r global_options, include=FALSE}
 knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+
 library(tidytext)
 library(dplyr)
 library(MASS)
 library(stringr)
+library(ggplot2)
+library(janeaustenr)
+library(gender)
+library(broom)
+library(readr)
 ```
 
 
@@ -41,10 +47,6 @@ Below is a basic sentiment analysis using tidytext.
 
 
 ```{r,eval=FALSE}
-library(dplyr)
-library(tidytext)
-library(sentimentr)
-
 bing_lex <- get_sentiments("bing")
 
 tweet1 <- data_frame(text = c("Pulling out of the #ParisClimateDeal is reckless and regressive. Instead of handholding, I'll work for a sustainable future for our planet."))
@@ -101,8 +103,6 @@ text <- c("she is a dog that plays with children then hates lovely kids because 
 # The `sentiments` dataset in `tidytext`
 
 ```{r}
-library(tidytext)
-
 sentiments
 ```
 
@@ -120,7 +120,6 @@ Comments:
 - `nrc` has sentiment categories (positive, negative), and emotional categories (anger, anticipation, disgust, fear, joy, sadness, surprise, trust).
 
 ```{r}
-library(tidytext)
 get_sentiments("nrc")
 ```
 
@@ -128,14 +127,12 @@ get_sentiments("nrc")
 - `bing` has sentiment categories (positive, negative).
 
 ```{r}
-library(tidytext)
 get_sentiments("bing")
 ```
 
 - `AFINN` assigns a score from -5 (negative sentiment) to +5 (positive sentiment).
 
 ```{r}
-library(tidytext)
 get_sentiments("afinn")
 ```
 
@@ -144,10 +141,6 @@ get_sentiments("afinn")
 > Dictionary-based methods like the ones we are discussing find the total sentiment of a piece of text by adding up the individual sentiment scores for each word in the text. (Silage and Robinson, 2017)
 
 > Not every English word is in the lexicons because many English words are pretty neutral. It is important to keep in mind that these methods do not take into account qualifiers before a word, such as in “no good” or “not true”; a lexicon-based method like this is based on unigrams only. (Silage and Robinson, 2017)
-
-# The `sentimentr` library
-
-sentimentr attempts to take into account valence shifters (i.e., negators, amplifiers, de-amplifiers, and adversative conjunctions) while maintaining speed. Simply put, sentimentr is an augmented dictionary lookup. 
 
 
 # Sentiment analysis of Yelp reviews
@@ -167,9 +160,6 @@ This material is based on a blog post by [David Robinson](http://varianceexplain
 The dataset is from the [Yelp dataset challenge](https://www.yelp.com/dataset_challenge)
 
 ```{r,eval=FALSE,echo=FALSE}
-library(readr)
-library(dplyr)
-
 infile <- "~/Dropbox/yelpdatachallenge/yelp_dataset_challenge_round9/yelp_academic_dataset_review.json"
 review_lines <- read_lines(infile, n_max = 1000, progress = FALSE)
 
@@ -199,13 +189,9 @@ write_csv(reviews,"yelp.csv")
 - This uses the idea of regular expressions.
 
 ```{r,cache=TRUE}
-library(dplyr)
-library(tidytext)
-library(stringr)
-
 reviews <- read_csv("~/Dropbox/Docs/DHSI-2017/day2/yelp.csv")
 
-review_words <- reviews %>% select(review_id, business_id, stars, text) %>% unnest_tokens(word,text) %>% filter(!word %in% stop_words$word, str_detect(word, "^[a-z']+$"))
+review_words <- reviews %>% dplyr::select(review_id,stars,text)  %>% unnest_tokens(word,text) %>% filter(!word %in% stop_words$word, str_detect(word, "^[a-z']+$"))
 
 head(reviews)
 head(review_words)
@@ -219,12 +205,10 @@ Is there a relationship between star rating and sentiment?
 Use AFINN lexicon and do an inner-join operation.
 
 ```{r,cache=TRUE}
-library(tidytext)
-library(dplyr)
 
 AFINN <- sentiments %>%
   filter(lexicon == "AFINN") %>%
-  select(word, afinn_score = score)
+  dplyr::select(word, afinn_score = score)
 
 reviews_sentiment <- review_words %>%
   inner_join(AFINN, by = "word") %>%
@@ -239,7 +223,6 @@ Now we have an average sentiment for each review with a star rating.
 This is an example of side-by-side boxplots.
 
 ```{r}
-library(ggplot2)
 theme_set(theme_bw())
 
 ggplot(reviews_sentiment, aes(stars, sentiment, group = stars)) +
@@ -298,10 +281,6 @@ Some properties of Tf-idf [(see Manning et al.)](https://nlp.stanford.edu/IR-boo
 # Jane Austen's novels
 
 ```{r}
-library(dplyr)
-library(janeaustenr)
-library(tidytext)
-
 book_words <- austen_books() %>%
   unnest_tokens(word, text) %>%
   count(book, word, sort = TRUE) %>%
@@ -320,32 +299,12 @@ book_words
 
 
 ```{r}
-library(ggplot2)
-
 ggplot(book_words, aes(n/total, fill = book)) +
   geom_histogram(show.legend = FALSE) +
   xlim(NA, 0.0009) +
   facet_wrap(~book, ncol = 2, scales = "free_y")
 ```
 
-- Many novels have similar distributions of words.
-- This distribution is called Zipf's law.
-
-
-```{r}
-freq_by_rank <- book_words %>% 
-  group_by(book) %>% 
-  mutate(rank = row_number(), 
-         `term frequency` = n/total)
-
-freq_by_rank
-
-freq_by_rank %>% 
-  ggplot(aes(rank, `term frequency`, color = book)) + 
-  geom_line(size = 1.2, alpha = 0.8) + 
-  scale_x_log10() +
-  scale_y_log10()
-```
 
 We can calculate tf-idf for the Jane Austen novels.
 
@@ -358,7 +317,7 @@ Let's look at terms with high tf-idf in Jane Austen's works.
 
 ```{r}
 book_words %>%
-  select(-total) %>%
+  dplyr::select(-total) %>%
   arrange(desc(tf_idf))
 ```
 
@@ -435,10 +394,6 @@ The conditional probability of Disease in article 1 is 10/40=`r round(10/40,1)`.
 - The linear regression line is an example of a supervised machine learning algorithm. 
 
 ```{r,cache=TRUE}
-library(dplyr)
-library(gender)
-library(ggplot2)
-library(broom)
 
 gendat <- gender:::basic_names %>%
   filter(name %in% c("hillary")) %>% filter(year >1960) %>%
@@ -460,8 +415,7 @@ predict(mod1,newdata = data.frame(year=c(2009)))
 
 
 ```{r}
-library(ROCR)
-library(broom)
+
 mod2 <- glm(cbind(female,male)~year,family = binomial,data=gendat)
 tidy(mod2)
 
@@ -507,7 +461,7 @@ The specificity is: $$\frac{d}{b+d}.$$
 
 
 
-Case Study #1 - Supervised Machine Learning: Predicting e-mail spam using logistic regression
+Case Study: Supervised Machine Learning: Predicting e-mail spam using logistic regression
 
 ```{r}
 library(ElemStatLearn)
@@ -590,111 +544,4 @@ table(predict.email,DATASET.test$spam)
 
 1-sum(DATASET.test$spam != predict.email)/nrow(DATASET.test)
 
-```
-
-
-# Classification Trees
-
-- A classification tree is used to predict a qualitative response rather than a quantitative one. 
-
-- A classification tree predicts that each observation belongs to the most commonly occurring class of training observations in the region to which it belongs.
-
-- The classification tree algorithm segments the features so that the "best" prediction is ultimately made.
-
-```{r,fig.width=10,fig.height=11,eval=FALSE,echo=FALSE}
-library(rpart)
-library(tree)
-library(maptree)
-library(ROCR)
-library(ggplot2)
-
-Heart <- read_csv("~/Dropbox/Docs/DHSI-2017/day2/Heart.csv")
-Heart <- Heart[,2:15]
-
-heart.tree <- rpart(AHD ~ ., method = "class", data = Heart)
-draw.tree(heart.tree, cex = 0.8, nodeinfo = TRUE, col = gray(0:8/8))
-```
-
-
-# Case Study 2 - Supervised Machine Learning: Predicting e-mail spam using classification trees
-
-
-```{r,fig.height=12,fig.width=9}
-library(dplyr)
-library(ElemStatLearn)
-library(rpart)
-library(tree)
-library(maptree)
-library(ROCR)
-library(ggplot2)
-
-DATASET <- spam
-head(DATASET)
-dim(DATASET)
-nrow(DATASET)
-ncol(DATASET)
-colnames(DATASET)
-
-# Change Column Names
-
-newColNames <- c("word_freq_make", "word_freq_address", "word_freq_all", "word_freq_3d", 
-    "word_freq_our", "word_freq_over", "word_freq_remove", "word_freq_internet", 
-    "word_freq_order", "word_freq_mail", "word_freq_receive", "word_freq_will", 
-    "word_freq_people", "word_freq_report", "word_freq_addresses", "word_freq_free", 
-    "word_freq_business", "word_freq_email", "word_freq_you", "word_freq_credit", 
-    "word_freq_your", "word_freq_font", "word_freq_000", "word_freq_money", 
-    "word_freq_hp", "word_freq_hpl", "word_freq_george", "word_freq_650", "word_freq_lab", 
-    "word_freq_labs", "word_freq_telnet", "word_freq_857", "word_freq_data", 
-    "word_freq_415", "word_freq_85", "word_freq_technology", "word_freq_1999", 
-    "word_freq_parts", "word_freq_pm", "word_freq_direct", "word_freq_cs", "word_freq_meeting", 
-    "word_freq_original", "word_freq_project", "word_freq_re", "word_freq_edu", 
-    "word_freq_table", "word_freq_conference", "char_freq_ch;", "char_freq_ch(", 
-    "char_freq_ch[", "char_freq_ch!", "char_freq_ch$", "char_freq_ch#", "capital_run_length_average", 
-    "capital_run_length_longest", "capital_run_length_total", "spam")
-
-colnames(DATASET) <- newColNames
-
-dataset.email <- sapply(DATASET[which(DATASET$spam == "email"),1:54],mean)
-dataset.spam <- sapply(DATASET[which(DATASET$spam == "spam"),1:54],mean)
-
-dataset.email.order <- data.frame(name=names(dataset.email[order(-dataset.email)[1:10]]),
-                                  mean=dataset.email[order(-dataset.email)[1:10]],class=rep("email",10))
-dataset.spam.order <- data.frame(name=names(dataset.spam[order(-dataset.spam)[1:10]]),
-                                            mean=dataset.spam[order(-dataset.spam)[1:10]],class=rep("spam",10))
-
-dataset.plot <-rbind(dataset.email.order,dataset.spam.order)
-
-ggplot(dataset.plot,aes(x=name, y=mean,fill=class))+
-  geom_bar(stat="identity",position="dodge")+
-  theme(axis.text.x=element_text(angle=90,hjust=1))
-
-# training and test sets
-
-set.seed(1423)
-index <- 1:nrow(DATASET)
-trainIndex <- sample(index, trunc(length(index) * 0.666666666666667))
-DATASET.train <- DATASET[trainIndex, ]
-
-DATASET.train %>% group_by(spam) %>% summarise(n=n()) %>% ggplot(aes(x=spam,y=n))+geom_bar(stat="identity")
-
-DATASET.test <- DATASET[-trainIndex, ]
-
-DATASET.test %>% group_by(spam) %>% summarise(n=n()) %>% ggplot(aes(x=spam,y=n))+geom_bar(stat="identity")
-
-# classification tree
-
-model.rpart <- rpart(spam ~ ., method = "class", data = DATASET.train)
-printcp(model.rpart)
-
-draw.tree(model.rpart, cex = 0.8, nodeinfo = TRUE, col = gray(0:8/8))
-
-# Confusion Matrix
-
-prediction.rpart <- predict(model.rpart, newdata = DATASET.test, type = "class")
-table(`Actual Class` = DATASET.test$spam, `Predicted Class` = prediction.rpart)
-
-error.rate.rpart <- sum(DATASET.test$spam != prediction.rpart)/nrow(DATASET.test)
-
-#Accuracy
-1-error.rate.rpart
 ```
