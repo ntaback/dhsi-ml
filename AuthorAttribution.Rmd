@@ -1,54 +1,11 @@
 ---
-title: "R Notebook"
+title: "Austhor Attribution"
 output: html_notebook
 ---
 
+Now we're going to try some supervised learning with authorship attribution. We'll load the plays of Ben Jonson, Christopher Marlowe, and a few of Shakespeare's plays into data frames. From there, we'll fix up the data a bit and 'train' a machine learning algorithm on those plays and use what it knows to try and guess who wrote another play (Henry VI)
 
-NOTE: Include a brief discussion about how we got the plays. Link to website...
-
-So what we could do with this is try and read 25 Shakespeare plays with the identifier "Is Shakespeare. " Then we read 10 works with the identifier "Is Ben Jonson." Then we might look at 10 plays that are under dispute -- we don't know (or agree) if they are Shakespeare or Jonson. Can machine learning help us identify 
- 
-The first thing to do is to load our local repository of Shakespeare plays into a data frame. The following commands set our working directory to the place where we've saved our Shakespeare files (you will need to edit this) and then loads a stores the list of those files in file _list.
-
-Next we're going to use two programming structures: a for loop and an if statement. 
-
-A for loop tells R to do something a certain number of times. Sometimes we just tell the program to do a series of tasks a specific number of times. In other cases (as below) we don't hard code a specific number into the for loop but instead give it some condition that it has to meet. In this case we're saying "For every file in the file_list structure, do the following things":
-
-For every file in file_list we have two if statements. The first if statement says 'if dataset does not exist' (!exists means does not exist) then read the file that we're currently looking at (remember, we do this for every file in our directory) into dataset. This condition will only occur for the first file that we read.
-
-The second ...
-
-```{r}
-
-library(dplyr)
-
-setwd("/Users/paulbarrett/Dropbox/Teaching/DHSI/Shakespeare")
-getwd()
-file_list <- list.files()
-file_list
-
-for (file in file_list) {
-  
-  if (!exists("Shake_dataset")){
-    Shake_dataset <- read.table (file, header=FALSE, sep="\n")
-  }
-  
-  if (exists("Shake_dataset")) {
-    temp_dataset <- read.table (file, header=FALSE, sep ="\n")
-    Shake_dataset <- rbind(Shake_dataset, temp_dataset)
-    rm(temp_dataset)
-  }
-}
-
-Shake_dataset
-#names(Shake_dataset) <- c("text")
-#Shake_dataframe %>% unnest_tokens(word, V1)
-
-```
-
-Dataset is now a dataframe containing all of the lines in Shakespeare's plays. 
-
-Next let's load, from project Gutenberg, all of the plays of two of Shakespeare's contemporaries, Christopher Marlowe and Ben Jonson. First we need to call the Gutenberg library. Then we need to get the Gutenberg IDs of all of Jonson's plays...
+First, let's load, from project Gutenberg, all of the plays that we'll need. Thankfully, there's a guntenberg library for R:
 
 ```{r}
 library(gutenbergr)
@@ -66,54 +23,75 @@ gutenberg_works(str_detect(author, "Carroll"))
 But there may be more than one author in the Gutenberg library with the last name Carroll. So let's be more specific:
 
 ```{r}
-library(stringr)
 gutenberg_works(str_detect(author, "Carroll, Lewis"))
 ```
 
 Now we've narrowed down these works to only Lewis Carroll.
 
-
 Let's say we can't remember Jonson's first name. In that case, we can search through all of the Gutenberg works to find anyone with the name Jonson:
 
 ```{r}
 gutenberg_works(str_detect(author, 'Marlowe'))
+gutenberg_works(str_detect(author, 'Jonson'))
 gutenberg_works(str_detect(author, 'Shakespeare'))
 ```
 
-
+OK, but our first table has returned any book by anyone named Jonson. Let's be more let's be more specific and look up the authors we actually want:
 
 ```{r}
 gutenberg_metadata %>% filter(author == "Marlowe, Christopher")
+gutenberg_metadata %>% filter(author == "Jonson, Ben")
 gutenberg_metadata %>% filter(author == "Shakespeare, William")
 ```
 
-Now we'd like to download all of those books:
+Now we'd like to download all of those books. We use the gutenberg_id to tell gutenberg(download) what books we'd like to download. 
+
+Note that we could have passed the gutenberg_ids from our gutenberg_metadata queries to just automatically start downloading all of the plays that came out of our search. This isn't actually what we want though because Gutenberg has multiple copies of some plays. Also, we don't actually want ALL of each writer's plays -- just a selection for our experiment. 
+
+For those reasons, I've hard coded the gutenberg_ID numbers into the code below:
+
+If we wanted to include the title of each work in our plays data we would include 'meta-data = "table" as a separate argument after the gutenberg_IDs. 
 
 ```{r}
 Jonson_plays <- gutenberg_download(c(3694, 3695, 3771, 4011, 4039, 4081, 5134, 5166, 5232, 5333, 
-                                     49461, 50150), meta_fields = "title")
+                                     49461, 50150))
 
 Marlowe_plays <- gutenberg_download (c(811, 901, 1094, 1589, 16169, 18781, 20288))
 
 #For Shakespeare, we'll just download a selection of his plays, leaving a few key plays excluded
 #Exclude: Henry the 6th, 
-Shakes_plays <- gutenberg_download(c(1041, 1103, 1104, 1106, 1107, 1108, 1109, 1111, 1112, 1113, 1114, 1115, 1116 ), meta_fields = "title")
+Shakes_plays <- gutenberg_download(c(1041, 1103, 1104, 1106, 1107, 1108, 1109, 1111, 1112, 1113, 1114, 1115, 1116))
+
+class(Jonson_plays)
+Jonson_plays
 
 ```
 
-Now lets turn this dataframe into texts we can work with:
+Now lets turn this dataframe into texts we can work with. First we'll use the unnest_tokens function to 'tokenize' each collection of plays. We're also including a count for each token for how often it appears in the author's corpus:
+
+***Paul: This data still needs to be cleaned up. There are a number of terms that have leading or trailing underscores. How do we remove these underscores?
 
 ```{r}
 library(tidytext)
 
-Jonson_words <- Jonson_plays %>% unnest_tokens(word, text)
-Shakes_words <- Shakes_plays %>% unnest_tokens(word, text)
-Marlowe_words <- Marlowe_plays %>% unnest_tokens(word, text)
+Jonson_words <- Jonson_plays %>% unnest_tokens(word, text) %>% count(word)
+Shakes_words <- Shakes_plays %>% unnest_tokens(word, text) %>% count(word)
+Marlowe_words <- Marlowe_plays %>% unnest_tokens(word, text) %>% count (word)
+```
 
+Now let's add the appropriate author column to our data frames and remove our stop words:
+
+```{r}
 #We add a column to our data frame to get a particular author
 Jonson_words$author <- "Jonson"
 Shakes_words$author <- "Shakespeare"
 Marlowe_words$author <- "Marlowe"
+
+data("stop_words")
+
+Jonson_words <- Jonson_words %>% anti_join(stop_words)
+Shakes_words <- Shakes_words %>% anti_join(stop_words)
+Marlowe_words <- Marlowe_words %>% anti_join(stop_words)
 
 ```
 

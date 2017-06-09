@@ -1,17 +1,140 @@
 ---
-title: "R Notebook"
+title: "Introduction to Topic Modeling"
 output: html_notebook
 ---
 
+---
+title: "Topic Modeling R Notebook"
+output: html_notebook
+---
+
+Topic Modeling is a form of unsupervised machine learning. It is a kind of text mining that doesn't search for particular, predetermined content, but instead 'reads' an entire corpus and extracts a set of topics. Its unclear, and a point of debate, whether the topics are read / discovered from the corpus or whether the topics are 'asserted' as a description of the corpus. 
+
+There are a number of tools for topic modeling: the most common is probably MALLET. 
+
+ADD MALLET IMAGE HERE
+
+Mallet is effective and can be useful but it requires a fair amount of command line programming. For a quick primer on installing and using mallet look here: http://programminghistorian.org/lessons/topic-modeling-and-mallet
+
+Instead of trying to navigate MALLET's difficult interface, we'll do our topic modeling in R. If we wanted, we could also install the MALLET package for R which allows us to run MALLET in R. But this requires that we first install MALLET on our local machine which is a bit tricky. So, for now, we'll just use the "topicmodels" library to do our work.
+
+One important thing to remember about topic modeling is that we tell the topic modeling algorithm beforehand how many topics we want it to discover. The number of topics is K so an intriguing question is how do we justify our 'k'?
+
+There's an intuitive way of doing this: if the topics appear too general, we increase the number of topics; if they're too narrow, we reduce the number of topics. This raises the question of whether the topics we get back from the algorithm are an actual representation of the corpus or whether they're just one of many possible interpretations of that corpus.  
+
+There is another, more mathematical method, whereby we calculate the 'Harmonic Mean' (sounds good) of various models in order to find the number of topics (k) that best fits our model. Statisiticians don't appear to have come to any agreement that this method guarantees good results. Furthermore, from a humanities perspective we might resist the notion of a singular, 'correct' number of topics upon which to base our interpretations.
+
+This all might sound a bit confusing right now, but it should make sense once you see the examples. Keeping that in mind, let's jump in!
+
+To get started, lets load the topicmodels library (remember you may need to install first):
+
+```{r}
+library(topicmodels)
+```
+
+Next, let's load some data to model. The AssociatedPress dataset is a prepackaged collection of term-frequency data from 2,246 documents from the Associated Press. 
+
+```{r}
+data("AssociatedPress")
+AssociatedPress
+```
+
+This data is cleaned, packaged, and ready to go so we can actually just model it right away:
+
+```{r}
+ap_lda_2 <- LDA(AssociatedPress, k = 2, control = list(seed=1234))
+ap_lda_2
+```
+
+OK, now we have a model, of size 2, of the Associated Press data. But what does this actually mean? Generally speaking, this means that we have run our data through the topic modeling algorithm (LDA -- we can ignore the other parameters for now) and set the number of topics (k) equal to 2.
+
+Before we start really trying to understand what that all means, let's take a look at our topics to see what what they are. We can use tidytext to clean up this material and make it a bit easier to read.
+
+```{r}
+library(tidytext)
+ap_topics_2 <- tidy(ap_lda_2, matrix="beta")
+ap_topics_2
+```
+
+This table tells us the list of terms that appear int he model, with the probability that they are part of one of our topics. So "aaron" has a 1.686917e-12 of being in topic 1, a 3.89591e-05 of being in topic 2 and so on. How can we get more meaningful data?
+
+How about finding the top 20 terms associated with each topic? We can use dplyr to plot that:
+
+```{r}
+library(ggplot2)
+library(dplyr)
+
+ap_top_terms_2 <- ap_topics_2 %>%
+  group_by(topic) %>%
+  top_n(20, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms_2 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+```
+
+This gives us the top 10 terms for our two topics. This is interesting but what does it actually tell us? Can we glean anything particularly useful from the topics as they appear?
+
+What if we run the model again with a larger number of topics. Let's try 15:
+
+```{r}
+ap_lda_15 <- LDA(AssociatedPress, k = 15, control = list(seed=1234))
+ap_lda_15
+
+ap_topics_15 <- tidy(ap_lda_30, matrix="beta")
+ap_topics_15
+
+ap_top_terms_15 <- ap_topics_15 %>%
+  group_by(topic) %>%
+  top_n(10, beta) %>%
+  ungroup() %>%
+  arrange(topic, -beta)
+
+ap_top_terms_315 %>%
+  mutate(term = reorder(term, beta)) %>%
+  ggplot(aes(term, beta, fill = factor(topic))) +
+  geom_col(show.legend = FALSE) +
+  facet_wrap(~ topic, scales = "free") +
+  coord_flip()
+
+```
+
+This looks far more interesting and starts to give us some more meaningful information. A quick glance of the topics shows that these roughly align with major news stories over the past few years. The topic modeling algorithm has identified 
+
+One thing you'll notice about topic modeling is that certain words will overlap across topics. Other methods of analysis (forms of clustering) don't allow for this overlap.
+
+Topic modeling doesn't just estimate each topic as a mixture of words, it also can estimate the degree to which each document is a mixture of topics. This is called the per-document-per-topic probabilities ("gamma") by using tidy() with the matrix = "gamma" argument:
+
+```{r}
+ap_documents <- tidy(ap_lda_2, matrix = "gamma")
+ap_documents
+```
+
+
 Its one thing to try and topic model data that is already pre-packaged and ready to go but its something different altogether to work with your own data. Let's see a few different ways that we can work with data that we have to import ourselves.
 
-The files in your "CanLit" directory are plaintext (mostly -- with the exception of a fwe weird characters) copies of issues of the journal "Canadian Literature." What might we learn about the state of Canadian literature, about editorial decisionmaking, about what authors get discussed together if we engage in a topic modeling of the journal?
+First let's erase some of the data we don't need anymore to free up some memory:
 
-(Should I talk about how I got the plaintext versions of the issues?)
+```{r}
+rm(ap_documents)
+rm(ap_top_terms_15)
+rm(ap_topics_15)
+rm(ap_lda_15)
+rm(ap_lda_2)
+rm(AssociatedPress)
+```
+
+
+The files in your "CanLit" directory are plaintext (mostly -- with the exception of a few weird characters) copies of issues of the journal "Canadian Literature." What might we learn about the state of Canadian literature, about editorial decisionmaking, about what authors get discussed together if we engage in a topic modeling of the journal?
 
 First thing we'll do is try and load the files directly into R. 
 
-This code is similar to how we first tried loading the Shakespeare code into R. 
+This code is a bit tricky but can be useful to work through for a better understanding of how R works.
 
 ```{r}
 library(dplyr)
@@ -76,12 +199,6 @@ Full disclosure: When creating this notebook I didn't know about Quanteda so I d
 library(quanteda)
 library(readtext)
 
-#path <- "/Users/paulbarrett/Dropbox/Teaching/DHSI/CanLit/"
-#setwd(path)
-
-#CanLit_list is now a list of all the files in my CanLit directory
-#CanLit_list <- list.files()
-
 # readtext() is a simple method for reading all of the files in that directory. This replaces the big, ugly for loop that we had in our first chunk of code. Simple:
 CanLitFiles <- readtext("/Users/paulbarrett/Dropbox/Teaching/DHSI/CanLit/*.txt")
 
@@ -95,22 +212,28 @@ OK, so we *think* we've created a corpus. Let's have a look to see what we've bu
 #Lets take a look at what our corpus looks like:
 class(CanLit_corpus_readtext)
 summary(CanLit_corpus_readtext)
-length(CanLit_corpus_readtext)
+
 ```
 
 This looks good! Remember, a corpus is just a fancy way of describing a collection of works that have been formatted to interact with some of R's functions. A corpus could be any collection of objects you want to investigate: 100 novels, 1000 astronomical charts, 500 letters, 10,000 pictures of your cat. Whatever...
 
-Now that we have our corpus, we can easily turn our corpus into a document frequency matrix.
+Now that we have our corpus, we can easily turn our corpus into a document feature matrix. A document fearture matrix is similar to a document term matrix: both are big tables that tell us how many times every word in a corpus occurs in a particular document in that corpus.
 
 ```{r}
 CanLit_Stopwords = c(stopwords("english"), stopwords("french"), "amprftvalfmtinfo", "ericamprftidinfo", "mtx", "ofifmt", "sfxscholarsportalinfomcmasterurlverz", "authoraffil", "authoraffili", "tion", "p", "ing", "ia")
+
+#Can we use DFM in LDA?
 
 CanLit_dfm <- dfm(CanLit_corpus_readtext, remove = CanLit_Stopwords, stem = TRUE, remove_punct = TRUE)
 ```
 
 There are a few things going on here: 
 
-First we call the command dfm with a series of arguments (the things in the brackets separated by commas).
+The first thing I've done is create a list of 'stopwords'. CanLit_Stopwords uses the 'c' command (concatenate) to put together a big list of words that we don't want to be included in the document frequency matrix. These are words like "he," "the," "a," "i" -- words that are so generic they won't be useful for any kind of analysis.
+
+The first part of the list uses the command stopwords("english") to remove standard english stopwords, then stopwords("french") to remove the french stopwords (since Canadian Literature is a bilingual journal) and then I've appended a small list of custom words that I know appear in this corpus. We can edit this custom list (and even make it more formal by storing it in a custom stopwords file somewhere) as needed.
+
+Once we have defined our CanLit_Stopwords, we call the command dfm with a series of arguments (the things in the brackets separated by commas).
 
 Arguments allow us to customize how we want the command to be run. So if we're not picky we might just run a command like:
 
@@ -124,15 +247,13 @@ In this case we have four arguments associated with our dfm command: input, remo
 
 Lets look at the arguments that I'm including for dfm:
 
-***HAVE WE EXPLAINED STEMMING AND STOPWORDS ALREADY?
-
 remove = CanLit_Stopwords -- This tells the dfm to remove a selection of English, French, and CanLit custom stopwords from the corpus. 
 
-stem = TRUE -- This tells dfm to stem words. The idea is that we are really interested in the ...
+stem = TRUE -- This tells dfm to stem words. The idea is that in the case of words with suffixes (governing, government, governable, governor) we are really interested in the root word: govern. So we trim the suffix from these words to make them all group together. This is a bit of an imprecise process though as sometimes these terms (stating, stately) aren't really related.
 
 remove_punct = TRUE -- This tells dfm to remove punctuation.
 
-Most of these arguments are in the interest of 'scrubbing' the data -- removing the things we don't care about (words like "the," "a," "he," punctuation marks, etc...) so we are really only analyzing the parts of the text that are actually meaningful for our work.
+Most of these arguments are in the interest of 'scrubbing' the data -- removing the things we don't care about (stopwords, punctuation marks, etc...) so we are really only analyzing the parts of the text that are actually meaningful for our work.
 
 As data cleaning goes, this is a pretty crude and basic version of it. If we really wanted to substantially clean our data we'd need to go through this cleaning process a few times and probably write a script (in R or Python or a similar language) that cleans the data very well. But for our purposes, this is probably good enough.
 
@@ -142,7 +263,7 @@ OK, so what have we actually createed?
 CanLit_dfm
 ```
 
-OK -- interesting, but what does that actually tell us? Not much. But there a few tools that can give us a wider view of the DFM & corpus:
+OK -- interesting, but what does that actually tell us? Not much. But there a few tools that can give us a wider view of the DFM & corpus. Topfeatures is a useful command for understanding the more significant dimensions of the DFM:
 
 ```{r}
 CanLit_Top100 <- topfeatures(CanLit_dfm, 100) 
@@ -162,6 +283,8 @@ textplot_wordcloud(CanLit_dfm, min.freq = 11000, random.order = FALSE,
 We can also plot these values pretty easily:
 
 ```{r}
+
+library(ggplot2)
 # Create a data.frame for ggplot
 topDf <- data.frame(
     list(
@@ -177,49 +300,51 @@ ggplot(topDf) + geom_point(aes(x=term, y=frequency)) +
     theme(axis.text.x=element_text(angle=90, hjust=1))
 ```
 
-These are interesting, but if we want to be a bit more focused and look at some of the patterns more closely, we can generate some lexical dispersion plots. LDPs basically track how often a term gets used across a corpus. So we can see compare how often indigenous and black writing is discussed in the journal:
-
-```{r}
-
-```
+These are interesting, but if we want to be a bit more focused and look at some of the patterns more closely, we can generate some lexical dispersion plots. LDPs basically track how often a term gets used across a corpus. So we can see  how often different writers are discussed in the journal:
 
 
 ```{r}
 textplot_xray(
      kwic(CanLit_corpus_readtext[160:211], "Margaret Atwood"),
-     kwic(CanLit_corpus_readtext[160:211], "Mordechai Richler"),
+     kwic(CanLit_corpus_readtext[160:211], "Mordecai Richler"),
      kwic(CanLit_corpus_readtext[160:211], "Austin Clarke")
 )
 ```
 
+We can do a lot with our DFM, but for topic modeling we need to convert our corpus into a Document Term Matrix. Actually, strictly speaking this isn't completely true -- our topic modeling algorithm will still work with a DFM but it requires some tricky conversion and seems to run a lot slower. So we're going to convert our corpus into a DTM to make things a bit easier:
 
+```{r}
 
+#We create our Document Term Matrix out of the CanLit corpus.
+CanLit_DTM <- DocumentTermMatrix(CanLit_corpus)
+CanLit_DTM
+```
+
+Now we have our CanLit Document Term Matrix. Again, this is a huge table where the rows are the corpus items and the columns are the words that appear in the corpus. Any given cell tells us how many times that particular word appears in that particular corpus item. 
+
+The problem with this matrix is that it is absolutely huge. Note that the Sparsity of this DTM is 95%. That means approximately 95% of the cells in the matrix are empty (because so many of our words only appear in a handful of issues). The bigger the matrix, the more memory and time it will take to run our topic modeling algorithm so we need to figure out a way to shrink our matrix a bit. 
+
+We can actually take two approaches to reducing the size of our matrix. We can use the TF-IDF to exclude terms that aren't very important to the matrix or we can use removeSparseTerms() to similarly shrink the size of the matrix. The first option is probably preferred given that it is less of a blunt approach than the second. Let's try both approaches:
+
+```{r}
+CanLit_DTM_Slim1 <-DocumentTermMatrix (CanLit_corpus, control = list(removePunctuation = TRUE, stopwods = TRUE, weighting = function(x) weightTfIdf(x, normalize = FALSE)))
+CanLit_DTM_Slim1
+```
 
 
 ```{r}
-freq=rowSums(as.matrix(CanLit_dfm))
-head(freq,200)
-plot(sort(freq, decreasing = T),col="blue",main="Word TF-IDF frequencies", xlab="TF-IDF-based rank", ylab = "TF-IDF")
-tail(sort(freq),n=100)
-
-library(ggplot2)
-
-high.freq=tail(sort(freq),n=50)
-hfp.df=as.data.frame(sort(high.freq))
-hfp.df$names <- rownames(hfp.df) 
-
-ggplot(hfp.df, aes(reorder(names,high.freq), high.freq)) +
-  geom_bar(stat="identity") + coord_flip() + 
-  xlab("Terms") + ylab("Frequency") +
-  ggtitle("Term frequencies")
-```
+CanLit_DTM_Slim2 <- DocumentTermMatrix(CanLit_corpus, control = list(removePunctuation = TRUE, stopwods = TRUE ))
+CanLit_DTM_Slim2 <- removeSparseTerms(CanLit_DTM, 0.8)
+CanLit_DTM_Slim2
 ```
 
+Quanteda also actually gives us tools for topic modeling:
 
 Now that we have created a ____, let's try and actually generate a topic model from our corpus.
 
 ```{r}
 library(topicmodels)
+library(tm)
 
 burnin <- 4000
 iter <- 200
@@ -229,8 +354,8 @@ nstart <- 5
 best <- TRUE
 k <- 5
 
-CanLit_lda_5 <- LDA (CanLit_dfm,k, method="Gibbs", control=list(nstart=nstart, seed = seed, best=best, burnin = burnin, iter = iter, thin=thin))
+CanLit_lda_5 <- LDA (Temp_DTM,k)
+CanLit_lda_5_posterior <- posterior (CanLit_lda_5)
 
-#CanLit_lda_25 <- LDA(CanLit_tdm, k = 25, control = list(seed=1234))
 ```
  
