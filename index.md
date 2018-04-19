@@ -18,6 +18,6 @@ Coming soon ...
 
 [Day 1](https://ntaback.github.io/dhsi-ml/day1/day1notes.html)
 
-[Day 2](https://ntaback.github.io/dhsi-ml/day2/day2notes.Rmd)
+[Day 2](https://ntaback.github.io/dhsi-ml/day2/day2notes.html)
 
-[Day 3](https://ntaback.github.io/dhsi-ml/day3/day3notes.RMD)
+[Day 3](https://ntaback.github.io/dhsi-ml/day3/day3notes.html)
