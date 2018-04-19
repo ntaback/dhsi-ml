@@ -16,7 +16,7 @@ Coming soon ...
 
 ## Course Notes
 
-[Day 1](https://github.com/ntaback/dhsi-ml/blob/master/day1/day1notes.Rmd)
+[Day 1](https://ntaback.github.io/dhsi-ml/day1/day1notes.html)
 
 [Day 2](https://github.com/ntaback/dhsi-ml/blob/master/day2/day2notes.Rmd)
 
