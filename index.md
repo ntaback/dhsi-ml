@@ -1,5 +1,3 @@
-# DHSI Summer Institute: Introduction to Machine Learning in the Digital Humanities
-
 # Instructors
 
 [Paul Barrett](http://paulbarrett.ca/wp/) and [Nathan Taback](http://utstat.toronto.edu/~nathan/)
