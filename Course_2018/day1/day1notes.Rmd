@@ -1,0 +1,409 @@
+---
+title: "Introduction to Machine Learning in the Digital Humanities - Day 1"
+output:
+  html_document: default
+  html_notebook: default
+  pdf_document: default
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+library(tidyverse)
+library(tidytext)
+library(SnowballC)
+library(gutenbergr)
+library(gmodels)
+library(scales)
+```
+
+# Today's class
+
+- Text as data 
+- Introduction to Statistics and Machine Learning
+- Introduction to the tidy text format in R
+
+By the end of today:
+
+- R and several libraries should be installed. 
+- Understand the idea that text can be mapped into data.
+- Be able to use the `unnnest_tokens()` and `count()` functions to count frequencies of words in text.
+
+
+# Data
+
+- Statistics and Machine Learning start with data.
+- Data can be numerical or text.
+- Numerical data arises during measurement.  For example, weight, height, and age.
+- Categorical data arise when the outcome of the measurements are discrete categories.  For example, colour, sex, satisfaction, and year of study at university.
+- Text.  
+
+> “Everything can be taken from a man but one thing: the last of the human freedoms—to choose one’s attitude in any given set of circumstances, to choose one’s own way.” Viktor Frankl, Man's Search for Meaning
+
+# Text as Data
+
+- In order to convert raw text into data it's convenient to break the text into some pre-defined unit such as words or phrases.
+
+- A *token* is a meaningful unit of text, such as a word, that we are intrested in using for analysis. Tokenization is the process of splitting text into tokens.  
+
+- A text is ready for analysis if it has one-token-per-row.  A token is often a single word but it could also be a sentence or a paragraph. 
+
+- R or other software packages can be used to break text into tokens.
+
+- All students should try this example.
+
+```{r}
+vfquote <- c("Everything can be taken from a man but one thing: the last of the human freedoms—to choose one’s attitude in any given set of circumstances, to choose one’s own way.")
+
+vf_df <- data_frame(vfquote) 
+
+unnest_tokens(vf_df,output = word,input = vfquote, token = "words")
+
+vf_df %>% 
+  unnest_tokens(output = word, input = vfquote, token = "words") # same result but using piping
+
+vf_df %>% 
+  unnest_tokens(output = word, input = vfquote, token = "sentences") # token is a sentence
+
+vf_df %>% 
+  unnest_tokens(output = sent, input = vfquote, token = "ngrams", n = 2) # token is a bigram
+
+vf_df %>% 
+  unnest_tokens(output = word, input = vfquote, token = "regex", pattern = "-") # token is all words that begin with 
+
+library(janeaustenr)
+d <- data_frame(txt = prideprejudice)
+
+w <- d %>%
+  unnest_tokens(chapter, txt, token = "regex", pattern = "Chapter [\\d]")
+
+head(w) # the first 6 chapters of Pride and Prejudice
+```
+
+- When humans read text they do not see a sequence of unrelated tokens. 
+- They interpret words in light of other words, and extract meaning from the text as a whole. 
+- It might seem obvious that any attempt to distill text into meaningful data must similarly take account of complex grammatical structures and rich interactions among words. (Gentzkow et al. 2017)
+- Analysis of text in the humanities and social sciences ignores most of the complexity.
+- Raw text is an order sequence of words, punctutaion, and whitespace.
+- To reduce this to a simpler representation suitable for statistical analysis three types of simplifications are usually made
+1. Divide the text into individual documents.
+2. Reduce the number of language elements we consider.
+3. Limit the extent to which we encode dependence among elements within a document. 
+
+# tidy text in R
+
+- The tidy text format has one-token-per-row.
+- The tidytext library has function for getting text into a tidy format.  For example, `unnest_tokens()`.
+
+# `tidytext` Library
+
+- `tidytext` is an example of an R library.
+- A `library` is a set of functions that users and companies have written.
+- Other libraries for handling text are: `spacyr`, `quanteda`, `cleanNLP`.
+
+# Stop Words
+
+Stop words are words that are not useful for an analysis, typically extremely common words such as “the”, “of”, “to”, and so forth in English. 
+
+The `tidytext` library has a dataset of stop words `stop_words`.
+
+```{r}
+stop_words
+```
+
+For more information on these stop words look at the help menu or type `?stop_words`
+
+# Stemming Words
+
+The `SnowballC` library has a function that stems words.
+
+```{r}
+wordStem(c("win", "winning", "winner"))
+```
+
+More details on these algorithms can be found using help `?wordStem` 
+
+# Counting Words
+
+If the text is in tidy text format and we want to count the number of words then we use the `count()` function in the `dplyr` library.
+
+```{r}
+vfquote <- c("Everything can be taken from a man but one thing: the last of the human freedoms—to choose one’s attitude in any given set of circumstances, to choose one’s own way.")
+
+vf_df <- data_frame(vfquote) 
+
+unnest_tokens(vf_df,output = word,input = vfquote)
+
+unnest_tokens(vf_df,output = word,input = vfquote) %>% count(word,sort = TRUE)
+
+```
+
+- This code takes the data in `unnest_tokens(vf_df,output = word,input = vfquote)` and *pipes* it into the `count()` function.  
+
+- Piping is only available if the `tidyverse` library is loaded.
+
+# R or Python for Natural Language Processing?
+
+- In this workshop we plan to use the RStudio to do interactive data analysis.
+- RStudio is an example of an integrated development environment (IDE).  
+- Another similar IDE is Jupyter notebooks.
+- Each has thier strengths and weaknesses. 
+- Both IDEs allow R and Python programs and libraries.
+- I'll stick to R for almost all of the examples.
+
+
+
+# Statistics and Machine Learning
+
+## Statistics
+
+- Statistics is the study of variation.  
+- A certain town is served by two hospitals. In the larger hospital about 45 babies are born each day, and in the smaller hospital about 15 babies are born each day. As you know, about 50 percent of all babies are boys. However, the exact percentage varies from day to day. Sometimes it may be higher than 50 percent, sometimes lower. For a period of 1 year, each hospital recorded the days on which more than 60 percent of the babies born were boys. Which hospital do you think recorded more such days? (Tversky and Kahneman, 1974)
+
+
+```{r, echo=FALSE}
+set.seed(1)
+p_small <- rbinom(365,15,.5)/15
+p_large <- rbinom(365,45,.5)/45
+hospdat <- data.frame(p_small,p_large)
+ggplot(hospdat,aes(p_small)) + geom_bar() + labs(title = "Distribution of Boys in Small Hospital",x = "Percentage of Boys") + xlim(0.15,0.9)
+ggplot(hospdat,aes(p_large)) + geom_bar() + labs(title = "Distribution of Boys in Large Hospital",x = "Percentage of Boys") + xlim(0.15,0.9)
+```
+
+- The fundemental notion in statistics that a larger size sample size (number of boys in a hospital) reduces variability is usually not part of people's intuitions.
+
+## Machine Learning - Digit Recognition
+
+- Machine learning (ML) is the science of getting computers to act without being explicitly programmed. ([Ng](https://www.coursera.org/learn/machine-learning)).
+- ML involves data exploration, statistical pattern recogition, and statistical prediction.
+- Consider the example of character recognition. 
+- The goal is classification of handwritten numerals. This problem captured the attention of the machine learning and neural network community for many years, and has remained a benchmark problem in the field. (Elements of Statis. Learning, pg. 404)
+- Figure 11.9 shows some examples of normalized hand- written digits, automatically scanned from envelopes by the U.S. Postal Service. The original scanned digits are binary and of different sizes and orientations; the images shown here have been deslanted and size normalized, resulting in 16 × 16 grayscale images (Le Cun et al., 1990). These 256 pixel values are used as inputs to the neural network classifier. (Elements of Statis. Learning, pg. 404)
+
+![](digits.png)
+
+- The data from this example come from the handwritten ZIP codes on envelopes from U.S. postal mail. 
+- The data for each image are a 16x16 grid of pixel intensities (scored from 0-253) and the identity of each image. 
+- Yaan LeCun (and many other groups) have been working very hard to obtain small error rates for this problem.  Error rates have been reported as low as 0.7%.
+
+# Supervised versus Unsupervised Machine Learning
+
+- This is an example of a **supervised** learning problem.  We have a set of features (pixel intensity), and a response (the true  identity of each image).  The problem is to use the features to **predict** the response.
+- If the response is quantitative then it is a regression problem.
+- If the response is qualitative then it is a classification problem.
+- Quantitative variables take on numerical values (e.g., height, weight, income), and qualitative variables take on values in one several classes (e.g., sex, authorship, brand of product purchased, sentiment, etc.).
+- Classical statistical methods such as linear (quantitative response) or logistic (qualitative response with two categories) are often used.
+- In **unsupervised** learning we observe only the features, but no response variable.  This is a more challenging situation. 
+
+
+# Epicycle of Analysis
+
+(Ref: Peng and Matsui, 2017)
+
+![](epicycle.png)
+
+# Case study #1 - "Gotta Serve Somebody"
+## tidy text and Data Vizualization
+
+
+Some text from the Bob Dylan song,  "Gotta Serve Somebody" 
+
+```{r}
+bd_text <- c("You may be an ambassador to England or France
+You may like to gamble, you might like to dance
+You may be the heavyweight champion of the world
+You may be a socialite with a long string of pearls
+But you're gonna have to serve somebody, yes
+Indeed you're gonna have to serve somebody
+Well, it may be the devil or it may be the Lord
+But you're gonna have to serve somebody
+You might be a rock 'n' roll addict prancing on the stage
+You might have drugs at your command, women in a cage
+You may be a business man or some high-degree thief
+They may call you doctor or they may call you chief
+But you're gonna have to serve somebody, yes you are
+You're gonna have to serve somebody
+Well, it may be the devil or it may be the Lord
+But you're gonna have to serve somebody
+You may be a state trooper, you might be a young Turk
+You may be the head of some big TV network
+You may be rich or poor, you may be blind or lame
+You may be living in another country under another name
+But you're gonna have to serve somebody, yes you are
+You're gonna have to serve somebody
+Well, it may be the devil or it may be the Lord
+But you're gonna have to serve somebody
+You may be a construction worker working on a home
+You may be living in a mansion or you might live in a dome
+You might own guns and you might even own tanks
+You might be somebody's landlord, you might even own banks
+But you're gonna have to serve somebody, yes
+You're gonna have to serve somebody
+Well, it may be the devil or it may be the Lord
+But you're gonna have to serve somebody
+You may be a preacher with your spiritual pride
+You may be a city councilman taking bribes on the side
+You may be workin' in a barbershop, you may know how to cut hair
+You may be somebody's mistress, may be somebody's heir
+But you're gonna have to serve somebody, yes
+You're gonna have to serve somebody
+Well, it may be the devil or it may be the Lord
+But you're gonna have to serve somebody
+Might like to wear cotton, might like to wear silk
+Might like to drink whiskey, might like to drink milk
+You might like to eat caviar, you might like to eat bread
+You may be sleeping on the floor, sleeping in a king-sized bed
+But you're gonna have to serve somebody, yes
+Indeed you're gonna have to serve somebody
+Well, it may be the devil or it may be the Lord
+But you're gonna have to serve somebody
+You may call me Terry, you may call me Timmy
+You may call me Bobby, you may call me Zimmy
+You may call me R.J., you may call me Ray
+You may call me anything but no matter what you say
+Still, you're gonna have to serve somebody, yes
+You're gonna have to serve somebody
+Well, it may be the devil or it may be the Lord
+But you're gonna have to serve somebody")
+
+bd_text
+```
+
+Now let's turn it into a tidy text dataset.  First put the text into a data frame
+
+```{r}
+bd_text_df <- data_frame(line = 1, text = bd_text)
+bd_text_df
+```
+
+A *token* is a meaningful unit of text, such as a word, that we are intrested in using for analysis. Tokenization is the process of splitting text into tokens.  
+
+A text is ready for analysis if it has one-token-per-row.  A token is often a single word but it could also be a sentence or a paragraph. 
+
+The tidytext paackage provides functionality to convert to a one-term-per-row format.
+
+We can use `unnest_tokens()` to break the the text into tokens.
+
+```{r}
+bd_text_df %>% unnest_tokens(word, text)
+```
+
+We can use the `count()` function in the `dplyr` library to find the most common words in the text.
+
+```{r}
+bd_text_df %>% unnest_tokens(word,text) %>% count(word,sort = TRUE)
+```
+
+We can create a plot of these frequencies using the ggplot2 library.
+
+```{r,fig.height=11,fig.width=8}
+bd_text_df %>% unnest_tokens(word,text) %>% count(word,sort = TRUE) %>%
+mutate(word = reorder(word,n)) %>%
+  ggplot(aes(word,n),size = 7) +
+  geom_col() +
+  xlab(NULL) +
+  theme_minimal() +
+  coord_flip()
+```
+
+## Questions
+
+1. Create a bar chart of the word frequencies.
+2. Are there any stop words that you think should be removed?
+3. Should the words be stemmed?
+
+# Case study #2 - H.G. Wells and Bront&euml; sisters
+## Data Wrangling and Statistical Analysis
+
+H. G. Wells books: The Time Machine, The War of the Worlds, The Invisible Man, and The Island of Doctor Moreau. 
+
+```{r}
+# Download HG Wells books from Gutenberg
+hgwells <- gutenberg_download(c(35, 36, 5230, 159))
+
+tidy_hgwells <- hgwells %>%
+  # the text of the four HG Wells books are separated into word tokens
+  unnest_tokens(word, text) %>% 
+  # anti_join with stop_words removes stop words
+  anti_join(stop_words)
+```
+
+Are any words not lowercase characters that may be in single quaotes?
+
+The function `str_detect()` can detect the presence or absence of a pattern in a string.
+
+The pattern `[a-z']+` is an example of a **regular expression**.  Regular expressions are a tool for describing patterns in strings.
+
+The regular expression `[a-z']+` matches every character between a and z with or without single quotations.
+
+```{r}
+sum(str_detect(tidy_hgwells$word, "[a-z']+") == FALSE)
+```
+
+
+What are the most common words in these novels?
+
+```{r}
+tidy_hgwells <- tidy_hgwells %>% mutate(word = str_extract(word, "[a-z']+")) %>% 
+  count(word,sort = T) 
+tidy_hgwells
+```
+
+
+Now get works of Bront&euml; sisters. 
+
+```{r}
+bronte <- gutenberg_download(c(1260, 768, 969, 9182, 767))
+
+tidy_bronte <- bronte %>%
+  unnest_tokens(word, text) %>%
+  anti_join(stop_words)
+```
+
+What are the most common words in these novels of the Bront&euml; sisters?
+
+```{r}
+tidy_bronte <- tidy_bronte  %>% mutate(word = str_extract(word, "[a-z']+")) %>% 
+  count(word,sort = T) 
+```
+
+Let's calculate the relative frequencies for each word for the works of Jane Austen and the Bront&euml; sisters and plot.
+
+
+```{r,cache=TRUE}
+comparison <- tidy_bronte %>% inner_join(tidy_hgwells,by="word")  %>% mutate(freq_bronte=n.x/sum(n.x),freq_wells=n.y/sum(n.y))
+
+
+ggplot(comparison, aes(freq_bronte,freq_wells)) + geom_point() + 
+  geom_text(aes(label = word), check_overlap = TRUE, vjust = 1, hjust = 1) +
+  scale_x_log10(labels = percent_format()) +
+  scale_y_log10(labels = percent_format()) +
+  geom_abline(color = "red")
+
+
+```
+
+What have we plotted? How can we interpret this plot? Is it meaningful? 
+
+All the words that appear in both texts.  But, among all words in the text how many appear in one text and not the other?
+
+```{r}
+comparison_all <-
+  tidy_bronte %>% full_join(tidy_hgwells, by = "word") %>%
+  mutate(br_in = if_else(is.na(n.x), 0, 1),
+  well_in = if_else(is.na(n.y), 0, 1))
+  with(comparison_all, CrossTable(br_in, well_in, prop.chisq = F))
+```
+
+This table tells us that there are 11,710 words in Well's works, and 8,307 (71%) of these words appear in Bront&euml; sisters works.  Conversely, there are 22,678 words that appear in Bront&euml; sister's works and 8,307 (37%) of these words appear in Well's works.  
+
+- If a word is randomly selected in one of the Well's novels then there is a 0.71 chance that it will also appear in the Bront&euml; sisters works.  This is also called the conditional probability that the word appears in Bront&euml; sisters *given that* it appears in Wells.
+
+- If a word is randomly selected in one of the Bront&euml; sisters works then there is a 0.37 chance that it will also appear in the Well's novels.  This is also called the conditional probability that the word appears in Wells *given that* it appears in Bront&euml; sisters.
+
+Did Wells influence the Bront&euml; sisters?
+
+
+# Case study # 3 
+
+- Class chooses a text to work on.
+- Class members present their work.

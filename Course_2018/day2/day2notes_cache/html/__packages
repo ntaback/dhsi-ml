@@ -1,0 +1,11 @@
+base
+tidytext
+dplyr
+MASS
+stringr
+ggplot2
+janeaustenr
+gender
+broom
+readr
+bindrcpp

@@ -1,0 +1,155 @@
+---
+title: "Introduction to Machine Learning in the Digital Humanities - Day 3"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+library(dplyr)
+library(ggplot2)
+library(ggdendro)
+library(gutenbergr)
+library(tidytext)
+library(stringr)
+library(quanteda)
+library(tm)
+library(SnowballC)
+```
+
+# Today's class
+
+- Unsupervised learning 
+- Latent Dirchlet Allocation
+- Heirarchical Clustering
+
+
+
+# Topic Modelling - Latent Dirchlet Allocation (LDA)
+
+- LDA is one of the "simplest" topic models.
+
+- A topic is defined as having words associated with that topic with high probability.  For example, genetics topic has words about genetics with high probability.
+
+## LDA Assumptions
+
+- The model assumes that these topics are generated before the documents.
+
+- Each document in the collection shares the same topics.
+- Each document exhibits the topics in different proportion.
+- Each word in each document belongs to one of the topics.
+
+## LDA Model
+
+- The LDA model calculates the conditional probability of a word being generated from a particular topic: the probability of a topic given the word.
+- This is called the per-topic-per-word probability.
+
+# Unsupervised Learning
+
+- In supervised learning we have a set of features and a response.  The goal is to predict the response based on the features.
+
+- In unsupervised learning we only have a set of features.
+
+- The goal is usually to discover interesting things about the features.
+
+- For example, an informative vizualization or meaningful subgroups among the observations.
+
+- Unsupervised learning is much more challenging since it's more subjective.
+
+- There is usually (not including topic modelling) no simple goal such as predicting the response.
+
+
+## Heirarchical Clustering
+
+- Clustering techniques are used to find subgroups or clusters in a data set.
+
+- The idea is to partition the observations into groups so that the observations within a group are similar, and the observations in different groups are different from each other.
+
+- This requires defining *similar*.  This is usually defined as Euclidean distance.
+
+- The term heirarchical refers to the fact that clusters obtained by cutting the dendrogram at a given height are necessarily nested within the clusters obtained by cutting the dendrogram at any greater height. 
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+set.seed(2)
+X1 <- rnorm(9)
+X2 <- X1+runif(9)
+dat <- data_frame(obs=1:9,X1,X2)
+ggplot(dat,aes(X1,X2,label=obs))+geom_point()+geom_text(aes(label=obs),hjust=0, vjust=-0.5)
+
+dat_matrix <- as.matrix(dat)
+d <-dist(scale(dat_matrix))
+groups <- hclust(d,method = "complete")
+plot(groups)
+dat
+d
+```
+
+# How to interpret a dendogram
+
+(Reference, James et.al., An Introduction to Statistical Learning)
+- Each leaf represents one of the nine observations. 
+- As we move up the tree some leaves fuse into branches.  These correspond to observations that are similar to each other.
+- In fact, this statement can be made precise: for any two observations, we can look for the point in the tree where branches containing those two observations are first fused. The height of this fusion, as measured on the vertical axis, indicates how different the two observations are. Thus, observations that fuse at the very bottom of the tree are quite similar to each other, whereas observations that fuse close to the top of the tree will tend to be quite different.
+
+- If the dendogram is cut at height 3.5 then this results in two distinct clusters.
+- If the dendogram is cut at height 2.5 then this results in three distinct clusters.
+- Conclusions about similarity are based on the location on the vertical axis where branches containing the observations are first fused.
+
+```{r,fig.height=12,fig.width=8}
+
+hgwells <- gutenberg_download(c(35, 36, 5230, 159,34962,1743))
+
+book_words <- hgwells %>%
+  unnest_tokens(word, text) %>% count(gutenberg_id, word, sort = TRUE) %>% ungroup()
+
+total_words <- book_words %>% group_by(gutenberg_id) %>% summarize(total = sum(n))
+
+book_words <- left_join(book_words,total_words) 
+book_words
+
+book_titles <- gutenberg_metadata %>% filter(gutenberg_id == 35 |gutenberg_id == 36|gutenberg_id ==5230|gutenberg_id == 159|gutenberg_id == 34962|gutenberg_id == 1743) %>% select(gutenberg_id,title)
+
+book_words <- left_join(book_words,book_titles) 
+
+book_words <- book_words %>% bind_tf_idf(word, title, n)
+
+
+
+book_words_high <- book_words %>%
+        select(-total) %>%
+        arrange(desc(tf_idf)) %>% slice(1:50)
+
+dtm_wells <- book_words_high %>% cast_tdm(title,word,n)
+
+wells_matrix <- as.matrix(dtm_wells)
+
+d <-dist(scale(wells_matrix))
+
+groups <- hclust(d,method = "complete")
+
+plot(groups,size=0.5,xlab = "Books")
+
+```
+
+
+
+- If you choose any height along the y-axis of the dendogram, and move across the dendogram counting the number of lines that you cross, each line represents a group that was identified when objects were joined together into clusters. 
+
+- The observations in that group are represented by the branches of the dendogram that spread out below the line. 
+
+- For example, if we look at a height of 690, and move across the x-axis at that height, we'll cross two lines. This defines a two-cluster solution; 
+
+- Following the line down through all its branches, we can see the names of the books that are included in these two clusters. 
+
+- The y-axis represents how close together words were when they were merged into clusters, clusters whose branches are very close together (in terms of the heights at which they were merged) probably aren't very reliable. 
+
+- If there's a big difference along the y-axis between the last merged cluster and the currently merged one, that indicates that the clusters formed are probably doing a good job in showing us the structure of the data. 
+
+- The dendogram shows that there seems to be two distinct groups.  
+
+# Questions
+- What does it mean for two books being similar?
+- Do these groups make sense?  
+- What is the interpretation of these groups?
+

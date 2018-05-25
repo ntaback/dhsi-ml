@@ -1,0 +1,40 @@
+---
+title: "R Notebook"
+output:
+  html_document:
+    df_print: paged
+---
+
+
+
+```{r}
+library(reticulate)
+use_python('/usr/local/bin/python3')
+use_condaenv("myenv")
+
+# sys = import("sys")
+# sys$version
+# py_config()
+
+scipy = import("scipy")
+numpy = import("numpy")
+pandas = import("pandas")
+nltk = import("nltk")
+matplot = import("matplotlib")
+```
+
+
+
+```{python}
+from nltk.book import *
+from matplotlib import *
+from scipy import *
+text2.common_contexts(["monstrous", "very"])
+len(text3)
+#from numpy import *
+#text1.concordance("monstrous")
+#text4.dispersion_plot(["citizens", "democracy", "freedom", "duties", "America"])
+#len(text3)
+```
+
+

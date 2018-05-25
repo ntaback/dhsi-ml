@@ -1,0 +1,547 @@
+---
+title: "Introduction to Machine Learning in the Digital Humanities - Day 2"
+output:
+  html_document: default
+  html_notebook: default
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(warning=FALSE, message=FALSE)
+
+library(tidytext)
+library(dplyr)
+library(MASS)
+library(stringr)
+library(ggplot2)
+library(janeaustenr)
+library(gender)
+library(broom)
+library(readr)
+```
+
+
+# Today's class
+
+- Scraping Twitter
+- Sentiment Analysis
+- Supervised Machine Learning
+- tf-idf
+- n grams
+
+By the end of today:
+
+# Sentiment Analysis
+
+Are these tweets related to #ParisClimateDeal positive or negative?
+
+## tweet 1
+
+![](tweet1.png)
+
+## tweet 2
+
+![](tweet2.png)
+
+
+Below is a basic sentiment analysis using tidytext.
+
+
+```{r,eval=FALSE}
+bing_lex <- get_sentiments("bing")
+
+tweet1 <- data_frame(text = c("Pulling out of the #ParisClimateDeal is reckless and regressive. Instead of handholding, I'll work for a sustainable future for our planet."))
+
+fn_sentiment <- tweet1 %>% unnest_tokens(word,text) %>%  left_join(bing_lex)
+
+fn_sentiment %>% filter(!is.na(sentiment)) %>% group_by(sentiment) %>% summarise(n=n())
+
+afinn_lex <- get_sentiments("afinn")
+
+fn_sentiment <- tweet1 %>% unnest_tokens(word,text) %>%  left_join(afinn_lex)
+
+fn_sentiment %>% filter(!is.na(score)) %>% summarise(mean=mean(score))
+
+sentiment(tweet1)
+mean(sentiment(tweet1)$sentiment)
+
+tweet2 <- data_frame(text=c("The USA is not an ulimited bank account for rich countries pretending to be poor. Pay your fair share for #NATO and the #ParisClimateDeal."))
+
+fn_sentiment <- tweet2 %>% unnest_tokens(word,text) %>%  left_join(bing_lex)
+
+fn_sentiment %>% filter(!is.na(sentiment)) %>% group_by(sentiment) %>% summarise(n=n())
+
+fn_sentiment <- tweet1 %>% unnest_tokens(word,text) %>%  left_join(afinn_lex)
+
+fn_sentiment %>% filter(!is.na(score)) %>% summarise(mean=mean(score))
+
+sentiment(tweet2)
+mean(sentiment(tweet2)$sentiment)
+
+#make interactive with class by asking for text
+# ask class to give text a score
+
+text <- c("she is a dog that plays with children then hates lovely kids because bob dylan; is a goat that drives a bike and sings classical trumpet")
+
+
+```
+
+
+# What is Sentiment analysis?
+
+- Often called opinion mining.
+
+> When we read text we use our understanding of the emotional intent to infer whether a section of text is positive or negative, or perhaps characterized by some other more nuanced emotion like surprise or disgust. 
+
+> We can use the tools of text mining to approach the emotional content of text programmatically,
+
+> One way to analyze the sentiment of a text is to consider the text as a combination of its individual words and the sentiment content of the whole text as the sum of the sentiment content of the individual words. This isn’t the only way to approach sentiment analysis, but it is an often-used approach, and an approach that naturally takes advantage of the tidy tool ecosystem.
+
+(Silage and Robinson, 2017)
+
+
+
+# The `sentiments` dataset in `tidytext`
+
+```{r}
+sentiments
+```
+
+- There are three general sentiment lexicons in the `sentiments` dataset.
+
+
+>- `AFINN` from [Finn Årup Nielsen](http://www2.imm.dtu.dk/pubdb/views/publication_details.php?id=6010),
+>- `bing` from [Bing Liu and collaborators](https://www.cs.uic.edu/~liub/FBS/sentiment-analysis.html), and
+>- `nrc` from [Saif Mohammad and Peter Turney](http://saifmohammad.com/WebPages/NRC-Emotion-Lexicon.htm).
+
+Comments:
+
+- All three are based on single words (i.e., unigrams). 
+
+- `nrc` has sentiment categories (positive, negative), and emotional categories (anger, anticipation, disgust, fear, joy, sadness, surprise, trust).
+
+```{r}
+get_sentiments("nrc")
+```
+
+
+- `bing` has sentiment categories (positive, negative).
+
+```{r}
+get_sentiments("bing")
+```
+
+- `AFINN` assigns a score from -5 (negative sentiment) to +5 (positive sentiment).
+
+```{r}
+get_sentiments("afinn")
+```
+
+> How were these sentiment lexicons put together and validated? They were constructed via either crowdsourcing (using, for example, Amazon Mechanical Turk) or by the labor of one of the authors, and were validated using some combination of crowdsourcing again, restaurant or movie reviews, or Twitter data. Given this information, we may hesitate to apply these sentiment lexicons to styles of text dramatically different from what they were validated on, such as narrative fiction from 200 years ago. While it is true that using these sentiment lexicons with, for example, Jane Austen’s novels may give us less accurate results than with tweets sent by a contemporary writer, we still can measure the sentiment content for words that are shared across the lexicon and the text. (Silage and Robinson, 2017)
+
+> Dictionary-based methods like the ones we are discussing find the total sentiment of a piece of text by adding up the individual sentiment scores for each word in the text. (Silage and Robinson, 2017)
+
+> Not every English word is in the lexicons because many English words are pretty neutral. It is important to keep in mind that these methods do not take into account qualifiers before a word, such as in “no good” or “not true”; a lexicon-based method like this is based on unigrams only. (Silage and Robinson, 2017)
+
+
+# Sentiment analysis of Yelp reviews
+
+This material is based on a blog post by [David Robinson](http://varianceexplained.org/r/yelp-sentiment/).
+
+- Does sentiment analysis work?
+
+- Can you predict positivity or negativity by assigning sentiment scores to words?
+
+# The Yelp Dataset
+
+
+
+![](yelp.csv)
+
+The dataset is from the [Yelp dataset challenge](https://www.yelp.com/dataset_challenge)
+
+```{r,eval=FALSE,echo=FALSE}
+infile <- "~/Dropbox/yelpdatachallenge/yelp_dataset_challenge_round9/yelp_academic_dataset_review.json"
+review_lines <- read_lines(infile, n_max = 1000, progress = FALSE)
+
+library(stringr)
+library(jsonlite)
+
+# Each line is a JSON object- the fastest way to process is to combine into a
+# single JSON string and use fromJSON and flatten
+reviews_combined <- str_c("[", str_c(review_lines, collapse = ", "), "]")
+
+reviews <- fromJSON(reviews_combined) %>%
+  flatten() %>%
+  tbl_df()
+write_csv(reviews,"yelp.csv")
+```
+
+
+
+- We want a data frame with one row per review.
+
+- The data set is large so we will look at 200,000 reviews.
+
+- Now we will use the `unnest_tokens()` function to get one row-per-term-per-document.
+
+- We will also remove stop words and formattimng text such as "--"
+
+- This uses the idea of regular expressions.
+
+```{r,cache=TRUE}
+reviews <- read_csv("~/Dropbox/Docs/DHSI/DHSI-2017/day2/yelp.csv")
+
+review_words <- reviews %>% dplyr::select(review_id,stars,text)  %>% unnest_tokens(word,text) %>% filter(!word %in% stop_words$word, str_detect(word, "^[a-z']+$"))
+
+head(reviews)
+head(review_words)
+```
+
+
+# Is text sentiment associated with star rating? 
+
+Is there a relationship between star rating and sentiment?
+
+Use AFINN lexicon and do an inner-join operation.
+
+```{r,cache=TRUE}
+
+AFINN <- sentiments %>%
+  filter(lexicon == "AFINN") %>%
+  dplyr::select(word, afinn_score = score)
+
+reviews_sentiment <- review_words %>%
+  inner_join(AFINN, by = "word") %>%
+  group_by(review_id, stars) %>%
+  summarize(sentiment = mean(afinn_score))
+
+reviews_sentiment
+```
+
+Now we have an average sentiment for each review with a star rating.
+
+This is an example of side-by-side boxplots.
+
+```{r}
+theme_set(theme_bw())
+
+ggplot(reviews_sentiment, aes(stars, sentiment, group = stars)) +
+  geom_boxplot() +
+  ylab("Average sentiment score")
+```
+
+
+Question:  What does that plot show about the relationship between sentiment and star rating?
+
+
+# Word and Document Frequency
+
+- How can we quantify what a document is about?
+
+- Count the frequency of terms that make up a document.
+
+- Words such as "the", "is", etc. can occur frequently.
+
+- Could use stop words, but this approach is limited, especially for commonly used words.
+
+## Term Frequency
+
+The term frequency in a document is number of times a term $\text t$ occurs in document $\text d$,
+
+$$\text{tf}_\text{t,d}.$$ 
+
+## Inverse Document Frequency
+
+- The inverse document frequency (IDF) is a statistical weight used for measuring the importance of a term in a text document collection. The document frequency DF of a term is defined by the number of documents in which a term appears.
+
+- Karen Sparck-Jones first proposed that terms with low document frequency are more valuable than terms with high document frequency during retrieval (Sparck-Jones K., 1972.). 
+
+- In other words, the underlying idea of IDF is that the more frequently the term appears in the collection, the less informative the term is.
+
+The *inverse document frequency* of a term $\text t$ is,
+
+$$\text{idf}_\text{t}=\log\left(\frac{N}{\text{df}_\text{t}}\right).$$ 
+
+$N$ is the total number of documents in a collection (or corpus) of documents, and $\text{df}_\text{t}$ is the number of documents in a collection that contain the term $\text t$.
+
+
+## Tf-idf Weighting
+
+A weight for each term in each document is given by multiplying term frequency and inverse document frequency.
+
+$$\text{tf-idf}_\text{t,d}= \text{tf}_\text{t,d} \times \log\left(\frac{N}{\text{df}_\text{t}}\right).$$
+
+Some properties of Tf-idf [(see Manning et al.)](https://nlp.stanford.edu/IR-book/html/htmledition/tf-idf-weighting-1.html):
+
+1. highest when $t$ occurs many times within a small number of documents (thus lending high discriminating power to those documents);
+2. lower when the term occurs fewer times in a document, or occurs in many documents (thus offering a less pronounced relevance signal);
+
+3. lowest when the term occurs in virtually all documents.
+
+# Jane Austen's novels
+
+```{r}
+book_words <- austen_books() %>%
+  unnest_tokens(word, text) %>%
+  count(book, word, sort = TRUE) %>%
+  ungroup()
+
+total_words <- book_words %>% 
+  group_by(book) %>% 
+  summarize(total = sum(n))
+
+book_words <- left_join(book_words, total_words)
+
+book_words
+```
+
+- One row for each word-book combination.
+
+
+```{r}
+ggplot(book_words, aes(n/total, fill = book)) +
+  geom_histogram(show.legend = FALSE) +
+  xlim(NA, 0.0009) +
+  facet_wrap(~book, ncol = 2, scales = "free_y")
+```
+
+
+We can calculate tf-idf for the Jane Austen novels.
+
+```{r}
+book_words <- book_words %>% bind_tf_idf(word, book, n)
+book_words
+```
+
+Let's look at terms with high tf-idf in Jane Austen's works.
+
+```{r}
+book_words %>%
+  dplyr::select(-total) %>%
+  arrange(desc(tf_idf))
+```
+
+
+
+# Supervised Learning
+
+## Conditional Probability
+
+## Success of lawyer
+
+- In 2014 the Law Society of Upper Canada charged a Toronto refugee lawyer for failing to represent his clients.
+
+- Part of the evidence involved evaluating the number of cases where his clients (people with refugees claims) were granted refugee status.
+
+- This lawyer's success rates were compared to several other lawyers.
+
+- Part of the data is shown in the table below.  The lawyer in question is B.
+
+
+| Lawyer | Abandoned | Negative | Positive | Total
+|--------|-----------|----------|----------|-------
+| A      | 403       | 95       | 6        | 504
+| B      | 223       | 137      | 26       | 386
+| C      | 149       | 73       | 27       | 249
+|**Total**   |775        |305       |59        |1139
+
+If the lawyer is B then the probability of a positive decision is 26/386=`r round(26/386,1)`.  This is called the conditional probability of a positive decision given the lawyer is B.
+
+If the decision was positive then the probability that the lawyer was is 26/159=`r round(26/159,1)`. This is called the conditional probability that the lawyer is B given a positive decision.
+
+Conditional probability is a fundemental concept in machine learning.
+
+## Words appearing in topics
+
+Three scientific articles contains a number of topics including "Genetics" and "Disease".  The number of words in each article that are related to the two topics are shown in the table below.
+
+| Document | Genetics | Disease |  Total
+|----------|-----------|----------|----------
+| Article 1| 30       | 10       | 40
+| Article 2| 20       | 20      | 40
+| Article 3| 15       | 5       | 20
+|**Total** |65        |35       |100
+
+
+The conditional probability of Disease in article 1 is 10/40=`r round(10/40,1)`.  
+
+- This is a simple example of topic modelling.  
+
+
+
+## Examples of Classification Problems
+
+- A person arrives at the emrgency room with a set of symptoms.  The symptoms can be attributed to one of two medical conditions.  Which of the two medical conditions does the individual have?
+
+- Several works of fiction are recently discovered in an archive.  Various features of the style of the document seem to indicate that the works were either written by Shakespeare or Jonson.  Who authored the recently discovered documents?
+
+- An email is sent to your address.  Various features of the email can be used to classify the email as spam or not spam. Is the email spam or not spam?
+
+## Linear Regression Analysis
+
+- Gender associated with names can change over time.
+- For example, the proportion of female babies born in the U.S. given the name Hillary has increased linearly over time.
+- The line drawn on the plot below is called the least-squares regression line. The shaded area around the line is the 95% confidence interval for the regression line.
+
+- In regression analysis the (dependent) variable on the y-axis is numerical, and the (independent) variable on the x-axis can be either numerical or categorical (e.g., the values are categories such place of birth).  
+
+- The least-squares regression line can be used to predict the proportion of females born.  This is an example of using a statistical model to make a prediction. 
+
+- "A common problem for researchers who work with data, especially historians, is that a dataset has a list of people with names but does not identify the gender of the person. Since first names often indicate gender, it should be possible to predict gender using names. However, the gender associated with names can change over time." (Mullen, Gender lib vignette)
+
+- The plot below shows the proportion of females babies born in the U.S. with the name Hillary with the linear regression line.
+
+- The linear regression line is an example of a supervised machine learning algorithm. 
+
+```{r,cache=TRUE}
+
+gendat <- gender:::basic_names %>%
+  filter(name %in% c("hillary")) %>% filter(year >1960) %>%
+  mutate(proportion_female = female / (female + male)) 
+
+ggplot(gendat, aes(x = year, y = proportion_female)) +
+  geom_point() + geom_smooth(method = "lm",se=TRUE) +
+  ggtitle("The changing gender of Hillary from 1960") +
+  xlab("Birth year for U.S. babies") + 
+  ylab("Proportion born female")+annotate("text",x=1990,y=0.96,label="linear regression line")
+
+mod1 <- lm(proportion_female~year,data = gendat)
+tidy(mod1)
+predict(mod1,newdata = data.frame(year=c(2009)))
+```
+
+- The problem with this model is that the dependent variable (male/female) is a proportion so it should always be between 0 and 1.
+- Logistic regression is the correct type of regression model for a dependent variable that has two unordered categories.
+
+
+```{r}
+
+mod2 <- glm(cbind(female,male)~year,family = binomial,data=gendat)
+tidy(mod2)
+
+predict(mod2,newdata = data.frame(year=c(2009)),type = "response")
+
+ggplot(gendat,aes(x=year,y=predict(mod2,type="response")))+geom_line()+
+  geom_point(data=gendat,aes(y=proportion_female),colour="red")+
+  ggtitle("The changing gender of Hillary from 1960") +
+  xlab("Birth year for U.S. babies") + 
+  ylab("Proportion born female")+ 
+  ylab("Proportion born female")+annotate("text",x=1980,y=0.96,label="logistic regression line")
+```
+
+
+
+## Logistic Regression Analysis
+
+- Logistic regression is similar to linear regression except that the dependent vaarieble is categorical (e.g., gender).
+
+- Logistic regression can be used to predict which category (often called class) an observation falls into.
+
+## Evaluating Prediction Accuracy
+
+- If the data fits the training set too well (e.g., a perfect fit) then this will lead to **overfitting the data**. 
+
+- This could lead to poor predictive performance on an independent test set.
+
+- Build the model on a test set (e.g., randomly select 2/3 of the data). Test the model on the remianing 1/3 of the data.
+
+- The accuracy of a classification algorithm can be evaluated by calculating the following table of numbers.
+
+|                 | Observed Class                |
+|-----------------|----------------|------|-------|
+| **Predicted Class** | email      | spam |**Total**  |
+| email           | a              |  b   | a+b   |
+| spam            | c              |  d   | c+d   |
+| **Total**           | a+c            | b+d  |       |
+
+
+The overall accuracy is: $$\frac{a+b}{a+b+c+d}.$$
+The sensitivity is: $$\frac{a}{a+c}.$$
+The specificity is: $$\frac{d}{b+d}.$$
+
+
+
+Case Study: Supervised Machine Learning: Predicting e-mail spam using logistic regression
+
+```{r}
+library(ElemStatLearn)
+library(rpart)
+library(tree)
+library(maptree)
+library(ggplot2)
+
+DATASET <- spam
+head(DATASET)
+dim(DATASET)
+nrow(DATASET)
+ncol(DATASET)
+colnames(DATASET)
+
+# Change Column Names
+
+newColNames <- c("word_freq_make", "word_freq_address", "word_freq_all", "word_freq_3d", 
+    "word_freq_our", "word_freq_over", "word_freq_remove", "word_freq_internet", 
+    "word_freq_order", "word_freq_mail", "word_freq_receive", "word_freq_will", 
+    "word_freq_people", "word_freq_report", "word_freq_addresses", "word_freq_free", 
+    "word_freq_business", "word_freq_email", "word_freq_you", "word_freq_credit", 
+    "word_freq_your", "word_freq_font", "word_freq_000", "word_freq_money", 
+    "word_freq_hp", "word_freq_hpl", "word_freq_george", "word_freq_650", "word_freq_lab", 
+    "word_freq_labs", "word_freq_telnet", "word_freq_857", "word_freq_data", 
+    "word_freq_415", "word_freq_85", "word_freq_technology", "word_freq_1999", 
+    "word_freq_parts", "word_freq_pm", "word_freq_direct", "word_freq_cs", "word_freq_meeting", 
+    "word_freq_original", "word_freq_project", "word_freq_re", "word_freq_edu", 
+    "word_freq_table", "word_freq_conference", "char_freq_ch;", "char_freq_ch(", 
+    "char_freq_ch[", "char_freq_ch!", "char_freq_ch$", "char_freq_ch#", "capital_run_length_average", 
+    "capital_run_length_longest", "capital_run_length_total", "spam")
+
+colnames(DATASET) <- newColNames
+
+dataset.email <- sapply(DATASET[which(DATASET$spam == "email"),1:54],mean)
+dataset.spam <- sapply(DATASET[which(DATASET$spam == "spam"),1:54],mean)
+
+dataset.email.order <- data.frame(name=names(dataset.email[order(-dataset.email)[1:10]]),
+                                  mean=dataset.email[order(-dataset.email)[1:10]],class=rep("email",10))
+dataset.spam.order <- data.frame(name=names(dataset.spam[order(-dataset.spam)[1:10]]),
+                                            mean=dataset.spam[order(-dataset.spam)[1:10]],class=rep("spam",10))
+
+dataset.plot <-rbind(dataset.email.order,dataset.spam.order)
+
+ggplot(dataset.plot,aes(x=name, y=mean,fill=class))+
+  geom_bar(stat="identity",position="dodge")+
+  theme(axis.text.x=element_text(angle=90,hjust=1))
+
+# training and test sets
+
+set.seed(1423)
+index <- 1:nrow(DATASET)
+trainIndex <- sample(index, trunc(length(index) * 0.666666666666667))
+DATASET.train <- DATASET[trainIndex, ]
+
+DATASET.train %>% group_by(spam) %>% summarise(n=n()) %>% ggplot(aes(x=spam,y=n))+geom_bar(stat="identity")
+
+DATASET.test <- DATASET[-trainIndex, ]
+
+DATASET.test %>% group_by(spam) %>% summarise(n=n()) %>% ggplot(aes(x=spam,y=n))+geom_bar(stat="identity")
+
+# logistic regression tree
+
+contrasts(DATASET.train$spam) 
+
+# model P(spam=1|features)
+
+model.logreg <- glm(spam ~ .,family = binomial ,data = DATASET.train)
+
+# use model to predict test data
+
+predcit.test.lr <- predict(model.logreg,newdata = DATASET.test,type="response")
+
+predict.email <- if_else(predcit.test.lr>=0.5,"spam","email")
+
+# confusion matrix
+table(predict.email,DATASET.test$spam)
+
+#overall accuracy
+
+1-sum(DATASET.test$spam != predict.email)/nrow(DATASET.test)
+
+```
